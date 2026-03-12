@@ -3091,7 +3091,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::BuildStateResponse(const FString& S
 					}
 				}
 
-				StatusText += FString::Printf(TEXT("Position: (%.0f, %.0f)\n"), FocusedNode->NodePosX, FocusedNode->NodePosY);
+				StatusText += FString::Printf(TEXT("Position: (%d, %d)\n"), static_cast<int32>(FocusedNode->NodePosX), static_cast<int32>(FocusedNode->NodePosY));
 			}
 			else
 			{
@@ -3119,11 +3119,11 @@ FToolResult ClaireonTool_EditBlueprintGraph::BuildStateResponse(const FString& S
 			FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 			bool bIsCursor = (Node->NodeGuid == Data->Cursor.FocusedNodeGuid);
 
-			StatusText += FString::Printf(TEXT("%d. [%s] @ (%.0f, %.0f)%s\n"),
+			StatusText += FString::Printf(TEXT("%d. [%s] @ (%d, %d)%s\n"),
 				NodeIndex++,
 				*NodeTitle,
-				Node->NodePosX,
-				Node->NodePosY,
+				static_cast<int32>(Node->NodePosX),
+				static_cast<int32>(Node->NodePosY),
 				bIsCursor ? TEXT(" <<<CURSOR>>>") : TEXT(""));
 
 			// Show execution connections (simplified)

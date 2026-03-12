@@ -655,13 +655,14 @@ FString ClaireonStateTreeHelpers::FormatStateTreeStructure(UStateTreeEditorData*
 
 #if WITH_EDITORONLY_DATA
 			SourceStr = Binding.GetSourcePath().GetStructID().ToString(EGuidFormats::DigitsWithHyphensLower);
-			for (const FStateTreePropertyPathSegment& Seg : Binding.GetSourcePath().GetSegments())
+			// auto&: segment type renamed from FStateTreePropertyPathSegment (5.5) to FPropertyBindingPathSegment (5.7)
+			for (const auto& Seg : Binding.GetSourcePath().GetSegments())
 			{
 				SourceStr += FString::Printf(TEXT(".%s"), *Seg.GetName().ToString());
 			}
 
 			TargetStr = Binding.GetTargetPath().GetStructID().ToString(EGuidFormats::DigitsWithHyphensLower);
-			for (const FStateTreePropertyPathSegment& Seg : Binding.GetTargetPath().GetSegments())
+			for (const auto& Seg : Binding.GetTargetPath().GetSegments())
 			{
 				TargetStr += FString::Printf(TEXT(".%s"), *Seg.GetName().ToString());
 			}

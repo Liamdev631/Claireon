@@ -9,6 +9,7 @@
 #include "ClaireonTypes.h"
 
 class IClaireonTool;
+class FClaireonServer;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnUserStopChanged, bool /*bIsActive*/);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnClaireonServerStarted, FClaireonServer& /*Server*/);
