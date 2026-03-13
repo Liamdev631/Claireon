@@ -17,6 +17,14 @@
 #include "Serialization/JsonSerializer.h"
 #include "UObject/UnrealType.h"
 #include "UObject/UObjectIterator.h"
+#include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewBinding.h"
+#include "MVVMBlueprintViewModelContext.h"
+#include "MVVMWidgetBlueprintExtension_View.h"
+#include "MVVMPropertyPath.h"
+#include "MVVMBlueprintViewConversionFunction.h"
+#include "WidgetBlueprintExtension.h"
+#include "Types/MVVMBindingMode.h"
 
 // ============================================================================
 // SerializeWidgetTree
@@ -95,6 +103,22 @@ TSharedPtr<FJsonObject> ClaireonWidgetHelpers::SerializeWidgetTree(UWidgetBluepr
 			BindingsArray.Add(MakeShared<FJsonValueObject>(BindingObj));
 		}
 		Result->SetArrayField(TEXT("bindings"), BindingsArray);
+	}
+
+	// Optional: MVVM bindings
+	if (Options.bIncludeMVVMBindings)
+	{
+		TSharedPtr<FJsonObject> ViewModelsObj = SerializeMVVMViewModelContexts(WidgetBP);
+		if (ViewModelsObj.IsValid())
+		{
+			Result->SetArrayField(TEXT("mvvm_viewmodels"), ViewModelsObj->GetArrayField(TEXT("viewmodels")));
+		}
+
+		TSharedPtr<FJsonObject> BindingsObj = SerializeMVVMBindings(WidgetBP);
+		if (BindingsObj.IsValid())
+		{
+			Result->SetArrayField(TEXT("mvvm_bindings"), BindingsObj->GetArrayField(TEXT("bindings")));
+		}
 	}
 
 	// Optional: animations
@@ -568,4 +592,267 @@ TSharedPtr<FJsonObject> ClaireonWidgetHelpers::SerializeAnimationDetails(UWidget
 	AnimObj->SetArrayField(TEXT("bindings"), BindingsArray);
 
 	return AnimObj;
+}
+
+// ============================================================================
+// MVVM Helpers
+// ============================================================================
+
+// Helper to convert EMVVMBindingMode to string
+static FString BindingModeToString(EMVVMBindingMode Mode)
+{
+	switch (Mode)
+	{
+	case EMVVMBindingMode::OneTimeToDestination: return TEXT("OneTimeToDestination");
+	case EMVVMBindingMode::OneWayToDestination:  return TEXT("OneWayToDestination");
+	case EMVVMBindingMode::TwoWay:               return TEXT("TwoWay");
+	case EMVVMBindingMode::OneWayToSource:       return TEXT("OneWayToSource");
+	default:                                     return TEXT("Unknown");
+	}
+}
+
+// Helper to convert EMVVMBlueprintViewModelContextCreationType to string
+static FString CreationTypeToString(EMVVMBlueprintViewModelContextCreationType Type)
+{
+	switch (Type)
+	{
+	case EMVVMBlueprintViewModelContextCreationType::Manual:                    return TEXT("Manual");
+	case EMVVMBlueprintViewModelContextCreationType::CreateInstance:            return TEXT("CreateInstance");
+	case EMVVMBlueprintViewModelContextCreationType::GlobalViewModelCollection: return TEXT("GlobalViewModelCollection");
+	case EMVVMBlueprintViewModelContextCreationType::PropertyPath:              return TEXT("PropertyPath");
+	case EMVVMBlueprintViewModelContextCreationType::Resolver:                  return TEXT("Resolver");
+	default:                                                                    return TEXT("Unknown");
+	}
+}
+
+// Helper to resolve a ViewModel GUID to its name via the view's contexts
+static FString ResolveViewModelName(const UMVVMBlueprintView* View, const FGuid& ViewModelId)
+{
+	if (!View || !ViewModelId.IsValid())
+	{
+		return FString();
+	}
+
+	const FMVVMBlueprintViewModelContext* Context = View->FindViewModel(ViewModelId);
+	if (Context)
+	{
+		return Context->GetViewModelName().ToString();
+	}
+
+	return ViewModelId.ToString();
+}
+
+// Helper to serialize an FMVVMBlueprintPropertyPath
+static TSharedPtr<FJsonObject> SerializePropertyPath(const UWidgetBlueprint* WidgetBP, const UMVVMBlueprintView* View, const FMVVMBlueprintPropertyPath& Path)
+{
+	TSharedPtr<FJsonObject> PathObj = MakeShared<FJsonObject>();
+
+	EMVVMBlueprintFieldPathSource SourceType = Path.GetSource(WidgetBP);
+	switch (SourceType)
+	{
+	case EMVVMBlueprintFieldPathSource::ViewModel:
+		PathObj->SetStringField(TEXT("type"), TEXT("viewmodel"));
+		PathObj->SetStringField(TEXT("viewmodel_name"), ResolveViewModelName(View, Path.GetViewModelId()));
+		break;
+	case EMVVMBlueprintFieldPathSource::Widget:
+		PathObj->SetStringField(TEXT("type"), TEXT("widget"));
+		PathObj->SetStringField(TEXT("widget_name"), Path.GetWidgetName().ToString());
+		break;
+	case EMVVMBlueprintFieldPathSource::SelfContext:
+		PathObj->SetStringField(TEXT("type"), TEXT("self"));
+		break;
+	default:
+		PathObj->SetStringField(TEXT("type"), TEXT("none"));
+		break;
+	}
+
+	// Get property path string using the generated class
+	UClass* GeneratedClass = WidgetBP ? WidgetBP->GeneratedClass : nullptr;
+	if (GeneratedClass)
+	{
+		FString PropertyPathStr = Path.GetPropertyPath(GeneratedClass);
+		PathObj->SetStringField(TEXT("property_path"), PropertyPathStr);
+	}
+	else
+	{
+		PathObj->SetStringField(TEXT("property_path"), TEXT(""));
+	}
+
+	return PathObj;
+}
+
+// ============================================================================
+// GetOrCreateMVVMBlueprintView
+// ============================================================================
+
+UMVVMBlueprintView* ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(UWidgetBlueprint* WidgetBP)
+{
+	if (!WidgetBP)
+	{
+		return nullptr;
+	}
+
+	// Try to get existing extension
+	UMVVMWidgetBlueprintExtension_View* Extension = UWidgetBlueprintExtension::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBP);
+	if (!Extension)
+	{
+		// Create the extension via RequestExtension (the engine's proper way to add extensions)
+		Extension = UWidgetBlueprintExtension::RequestExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBP);
+	}
+
+	if (!Extension)
+	{
+		return nullptr;
+	}
+
+	UMVVMBlueprintView* View = Extension->GetBlueprintView();
+	if (!View)
+	{
+		Extension->CreateBlueprintViewInstance();
+		View = Extension->GetBlueprintView();
+	}
+
+	return View;
+}
+
+// ============================================================================
+// GetMVVMBlueprintView
+// ============================================================================
+
+const UMVVMBlueprintView* ClaireonWidgetHelpers::GetMVVMBlueprintView(const UWidgetBlueprint* WidgetBP)
+{
+	if (!WidgetBP)
+	{
+		return nullptr;
+	}
+
+	const UMVVMWidgetBlueprintExtension_View* Extension = UWidgetBlueprintExtension::GetExtension<UMVVMWidgetBlueprintExtension_View>(WidgetBP);
+	if (!Extension)
+	{
+		return nullptr;
+	}
+
+	return Extension->GetBlueprintView();
+}
+
+// ============================================================================
+// SerializeMVVMViewModelContexts
+// ============================================================================
+
+TSharedPtr<FJsonObject> ClaireonWidgetHelpers::SerializeMVVMViewModelContexts(const UWidgetBlueprint* WidgetBP)
+{
+	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> ViewModelsArray;
+
+	const UMVVMBlueprintView* View = GetMVVMBlueprintView(WidgetBP);
+	if (!View)
+	{
+		Result->SetArrayField(TEXT("viewmodels"), ViewModelsArray);
+		Result->SetNumberField(TEXT("count"), 0);
+		return Result;
+	}
+
+	for (const FMVVMBlueprintViewModelContext& Context : View->GetViewModels())
+	{
+		TSharedPtr<FJsonObject> ContextObj = MakeShared<FJsonObject>();
+		ContextObj->SetStringField(TEXT("id"), Context.GetViewModelId().ToString());
+		ContextObj->SetStringField(TEXT("name"), Context.GetViewModelName().ToString());
+
+		UClass* VMClass = Context.GetViewModelClass();
+		ContextObj->SetStringField(TEXT("class"), VMClass ? VMClass->GetPathName() : TEXT("null"));
+
+		ContextObj->SetStringField(TEXT("creation_type"), CreationTypeToString(Context.CreationType));
+		ContextObj->SetBoolField(TEXT("optional"), Context.bOptional);
+
+		ViewModelsArray.Add(MakeShared<FJsonValueObject>(ContextObj));
+	}
+
+	Result->SetArrayField(TEXT("viewmodels"), ViewModelsArray);
+	Result->SetNumberField(TEXT("count"), ViewModelsArray.Num());
+	return Result;
+}
+
+// ============================================================================
+// SerializeMVVMBindings
+// ============================================================================
+
+TSharedPtr<FJsonObject> ClaireonWidgetHelpers::SerializeMVVMBindings(const UWidgetBlueprint* WidgetBP)
+{
+	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+	TArray<TSharedPtr<FJsonValue>> BindingsArray;
+
+	const UMVVMBlueprintView* View = GetMVVMBlueprintView(WidgetBP);
+	if (!View)
+	{
+		Result->SetArrayField(TEXT("bindings"), BindingsArray);
+		Result->SetNumberField(TEXT("count"), 0);
+		return Result;
+	}
+
+	for (const FMVVMBlueprintViewBinding& Binding : View->GetBindings())
+	{
+		TSharedPtr<FJsonObject> BindingObj = SerializeMVVMBinding(WidgetBP, Binding);
+		BindingsArray.Add(MakeShared<FJsonValueObject>(BindingObj));
+	}
+
+	Result->SetArrayField(TEXT("bindings"), BindingsArray);
+	Result->SetNumberField(TEXT("count"), BindingsArray.Num());
+	return Result;
+}
+
+// ============================================================================
+// SerializeMVVMBinding
+// ============================================================================
+
+TSharedPtr<FJsonObject> ClaireonWidgetHelpers::SerializeMVVMBinding(const UWidgetBlueprint* WidgetBP, const FMVVMBlueprintViewBinding& Binding)
+{
+	TSharedPtr<FJsonObject> BindingObj = MakeShared<FJsonObject>();
+
+	const UMVVMBlueprintView* View = GetMVVMBlueprintView(WidgetBP);
+
+	// Binding ID
+	BindingObj->SetStringField(TEXT("id"), Binding.BindingId.ToString());
+
+	// Source path
+	BindingObj->SetObjectField(TEXT("source"), SerializePropertyPath(WidgetBP, View, Binding.SourcePath));
+
+	// Destination path
+	BindingObj->SetObjectField(TEXT("destination"), SerializePropertyPath(WidgetBP, View, Binding.DestinationPath));
+
+	// Binding mode
+	BindingObj->SetStringField(TEXT("mode"), BindingModeToString(Binding.BindingType));
+
+	// Enabled / Compile flags
+	BindingObj->SetBoolField(TEXT("enabled"), Binding.bEnabled);
+	BindingObj->SetBoolField(TEXT("compile"), Binding.bCompile);
+
+	// Conversion info
+	TSharedPtr<FJsonObject> ConversionObj = MakeShared<FJsonObject>();
+	UClass* GeneratedClass = WidgetBP ? WidgetBP->GeneratedClass : nullptr;
+
+	UMVVMBlueprintViewConversionFunction* S2D = Binding.Conversion.GetConversionFunction(/*bSourceToDestination=*/ true);
+	if (S2D && S2D->IsValid(WidgetBP))
+	{
+		FName FuncName = S2D->GetCompiledFunctionName(GeneratedClass);
+		ConversionObj->SetStringField(TEXT("source_to_destination"), FuncName.ToString());
+	}
+	else
+	{
+		ConversionObj->SetField(TEXT("source_to_destination"), MakeShared<FJsonValueNull>());
+	}
+
+	UMVVMBlueprintViewConversionFunction* D2S = Binding.Conversion.GetConversionFunction(/*bSourceToDestination=*/ false);
+	if (D2S && D2S->IsValid(WidgetBP))
+	{
+		FName FuncName = D2S->GetCompiledFunctionName(GeneratedClass);
+		ConversionObj->SetStringField(TEXT("destination_to_source"), FuncName.ToString());
+	}
+	else
+	{
+		ConversionObj->SetField(TEXT("destination_to_source"), MakeShared<FJsonValueNull>());
+	}
+
+	BindingObj->SetObjectField(TEXT("conversion"), ConversionObj);
+
+	return BindingObj;
 }

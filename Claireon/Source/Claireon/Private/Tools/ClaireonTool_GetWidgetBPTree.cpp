@@ -20,7 +20,7 @@ FString ClaireonTool_GetWidgetBPTree::GetCategory() const
 
 FString ClaireonTool_GetWidgetBPTree::GetDescription() const
 {
-	return TEXT("Read-only inspection of a Widget Blueprint's widget tree hierarchy. Returns JSON with widget names, classes, slot properties, and optionally full widget properties, bindings, and animations. Does not require a session.");
+	return TEXT("Read-only inspection of a Widget Blueprint's widget tree hierarchy. Returns JSON with widget names, classes, slot properties, and optionally full widget properties, bindings, MVVM bindings, and animations. Does not require a session.");
 }
 
 TSharedPtr<FJsonObject> ClaireonTool_GetWidgetBPTree::GetInputSchema() const
@@ -59,6 +59,12 @@ TSharedPtr<FJsonObject> ClaireonTool_GetWidgetBPTree::GetInputSchema() const
 	IncludeAnimsProp->SetStringField(TEXT("type"), TEXT("boolean"));
 	IncludeAnimsProp->SetStringField(TEXT("description"), TEXT("Include animation list (default: false)"));
 	Properties->SetObjectField(TEXT("include_animations"), IncludeAnimsProp);
+
+	// include_mvvm_bindings - optional
+	TSharedPtr<FJsonObject> IncludeMVVMProp = MakeShared<FJsonObject>();
+	IncludeMVVMProp->SetStringField(TEXT("type"), TEXT("boolean"));
+	IncludeMVVMProp->SetStringField(TEXT("description"), TEXT("Include MVVM ViewModel contexts and bindings (default: false)"));
+	Properties->SetObjectField(TEXT("include_mvvm_bindings"), IncludeMVVMProp);
 
 	// widget_name - optional
 	TSharedPtr<FJsonObject> WidgetNameProp = MakeShared<FJsonObject>();
@@ -100,6 +106,7 @@ ClaireonTool_GetWidgetBPTree::FToolResult ClaireonTool_GetWidgetBPTree::Execute(
 	Arguments->TryGetBoolField(TEXT("include_properties"), Options.bIncludeProperties);
 	Arguments->TryGetBoolField(TEXT("include_bindings"), Options.bIncludeBindings);
 	Arguments->TryGetBoolField(TEXT("include_animations"), Options.bIncludeAnimations);
+	Arguments->TryGetBoolField(TEXT("include_mvvm_bindings"), Options.bIncludeMVVMBindings);
 
 	FString WidgetNameFilter;
 	if (Arguments->TryGetStringField(TEXT("widget_name"), WidgetNameFilter) && !WidgetNameFilter.IsEmpty())

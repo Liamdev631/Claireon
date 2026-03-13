@@ -39,6 +39,8 @@ public class Claireon : ModuleRules
 			"GraphEditor",       // SGraphEditor, graph panel access
 			"UMG",               // UWidgetBlueprint
 			"UMGEditor",         // Widget editor support
+			"ModelViewViewModel",          // EMVVMBindingMode, UMVVMViewModelBase
+			"ModelViewViewModelBlueprint", // UMVVMBlueprintView, FMVVMBlueprintViewBinding, property paths
 			"MovieScene",        // UMovieScene, FMovieScenePossessable, channels
 			"MovieSceneTracks",  // UMovieSceneFloatTrack, UMovieSceneColorTrack, UMovieSceneBoolTrack
 
@@ -55,7 +57,7 @@ public class Claireon : ModuleRules
 			// State Tree editing tools dependencies
 			"StateTreeModule",       // UStateTree, FStateTreeStateHandle, node base classes
 			"StateTreeEditorModule", // UStateTreeEditorData, UStateTreeState, FStateTreeCompiler
-			"PropertyBindingUtils",  // FPropertyBindingPath, FPropertyBindingBindableStructDescriptor (UE 5.7 compatibility)
+			"PropertyBindingUtils",  // FPropertyBindingPath, FPropertyBindingPathSegment (UE 5.7+)
 
 			// Blueprint editor library (RemoveUnusedNodes, RemoveUnusedVariables)
 			"BlueprintEditorLibrary",

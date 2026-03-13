@@ -3,6 +3,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Tools/ClaireonTool_GetWidgetBPTree.h"
+#include "Tools/ClaireonTool_EditWidgetBP.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/WidgetTree.h"
 #include "Blueprint/UserWidget.h"
@@ -180,5 +181,164 @@ bool FGetWidgetBPTreeTest_BasicRead::RunTest(const FString& Parameters)
 	Package->ClearFlags(RF_Standalone);
 
 	AddInfo(TEXT("GetWidgetBPTree.BasicRead passed"));
+	return true;
+}
+
+// ===========================================================================
+// Test: MVVMBindingsInTree
+// Verify include_mvvm_bindings flag controls MVVM data in tree output.
+// ===========================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGetWidgetBPTreeTest_MVVMBindingsInTree,
+	"Claireon.GetWidgetBPTree.MVVMBindingsInTree",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FGetWidgetBPTreeTest_MVVMBindingsInTree::RunTest(const FString& Parameters)
+{
+	const FString AssetPath = TEXT("/Game/__MCPTests/WBP_MVVMTreeTest");
+
+	// --- Step 1: Create WBP and add MVVM viewmodel using EditWidgetBP ---
+	ClaireonTool_EditWidgetBP EditTool;
+
+	// Create WBP
+	TSharedPtr<FJsonObject> CreateArgs = MakeShared<FJsonObject>();
+	CreateArgs->SetStringField(TEXT("operation"), TEXT("create"));
+	TSharedPtr<FJsonObject> CreateParams = MakeShared<FJsonObject>();
+	CreateParams->SetStringField(TEXT("asset_path"), AssetPath);
+	CreateParams->SetStringField(TEXT("root_widget_class"), TEXT("CanvasPanel"));
+	CreateArgs->SetObjectField(TEXT("params"), CreateParams);
+
+	auto CreateResult = EditTool.Execute(CreateArgs);
+	if (CreateResult.bIsError)
+	{
+		AddError(FString::Printf(TEXT("Failed to create WBP: %s"), *CreateResult.GetContentAsString()));
+		return false;
+	}
+
+	// Parse session_id
+	FString SessionId;
+	{
+		TSharedPtr<FJsonObject> Json;
+		TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(CreateResult.GetContentAsString());
+		if (FJsonSerializer::Deserialize(Reader, Json) && Json.IsValid())
+		{
+			Json->TryGetStringField(TEXT("session_id"), SessionId);
+		}
+	}
+	if (SessionId.IsEmpty())
+	{
+		AddError(TEXT("No session_id in create response"));
+		return false;
+	}
+
+	// Helper to execute operations
+	auto ExecOp = [&](const FString& Op, const TSharedPtr<FJsonObject>& Params) -> IClaireonTool::FToolResult
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), Op);
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		Args->SetObjectField(TEXT("params"), Params);
+		return EditTool.Execute(Args);
+	};
+
+	// Add viewmodel
+	{
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("viewmodel_name"), TEXT("TreeTestVM"));
+		Params->SetStringField(TEXT("viewmodel_class"), TEXT("MVVMViewModelBase"));
+
+		auto Result = ExecOp(TEXT("add_mvvm_viewmodel"), Params);
+		TestFalse("add_mvvm_viewmodel should succeed", Result.bIsError);
+		if (Result.bIsError)
+		{
+			AddError(FString::Printf(TEXT("Failed to add viewmodel: %s"), *Result.GetContentAsString()));
+			ExecOp(TEXT("close"), MakeShared<FJsonObject>());
+			return false;
+		}
+	}
+
+	// Save (compile) and close
+	{
+		auto Result = ExecOp(TEXT("compile"), MakeShared<FJsonObject>());
+		TestFalse("compile should succeed", Result.bIsError);
+	}
+
+	// Save
+	{
+		auto Result = ExecOp(TEXT("save"), MakeShared<FJsonObject>());
+		if (Result.bIsError)
+		{
+			AddInfo(FString::Printf(TEXT("save returned: %s (non-fatal)"), *Result.GetContentAsString()));
+		}
+	}
+
+	// Close session
+	ExecOp(TEXT("close"), MakeShared<FJsonObject>());
+
+	// --- Step 2: Call get_widget_tree WITH include_mvvm_bindings=true ---
+	ClaireonTool_GetWidgetBPTree TreeTool;
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("asset_path"), AssetPath);
+		Args->SetBoolField(TEXT("include_mvvm_bindings"), true);
+
+		auto Result = TreeTool.Execute(Args);
+		TestFalse("get_widget_tree with include_mvvm_bindings=true should succeed", Result.bIsError);
+
+		if (!Result.bIsError)
+		{
+			TSharedPtr<FJsonObject> Json;
+			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Result.GetContentAsString());
+			FJsonSerializer::Deserialize(Reader, Json);
+
+			if (Json.IsValid())
+			{
+				const TArray<TSharedPtr<FJsonValue>>* VMArray = nullptr;
+				bool bHasViewModels = Json->TryGetArrayField(TEXT("mvvm_viewmodels"), VMArray);
+				TestTrue("Response should contain 'mvvm_viewmodels' array", bHasViewModels);
+
+				if (bHasViewModels && VMArray)
+				{
+					TestTrue("mvvm_viewmodels array should have at least 1 entry", VMArray->Num() >= 1);
+					AddInfo(FString::Printf(TEXT("mvvm_viewmodels count: %d"), VMArray->Num()));
+				}
+			}
+			else
+			{
+				AddError(TEXT("Failed to parse tree result as JSON"));
+			}
+		}
+	}
+
+	// --- Step 3: Call get_widget_tree WITHOUT include_mvvm_bindings ---
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("asset_path"), AssetPath);
+		// include_mvvm_bindings defaults to false
+
+		auto Result = TreeTool.Execute(Args);
+		TestFalse("get_widget_tree without include_mvvm_bindings should succeed", Result.bIsError);
+
+		if (!Result.bIsError)
+		{
+			TSharedPtr<FJsonObject> Json;
+			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Result.GetContentAsString());
+			FJsonSerializer::Deserialize(Reader, Json);
+
+			if (Json.IsValid())
+			{
+				const TArray<TSharedPtr<FJsonValue>>* VMArray = nullptr;
+				bool bHasViewModels = Json->TryGetArrayField(TEXT("mvvm_viewmodels"), VMArray);
+				TestFalse("Response should NOT contain 'mvvm_viewmodels' when flag is false", bHasViewModels);
+				AddInfo(TEXT("Verified mvvm_viewmodels absent when include_mvvm_bindings is false"));
+			}
+			else
+			{
+				AddError(TEXT("Failed to parse tree result as JSON"));
+			}
+		}
+	}
+
+	AddInfo(TEXT("GetWidgetBPTree.MVVMBindingsInTree passed"));
 	return true;
 }

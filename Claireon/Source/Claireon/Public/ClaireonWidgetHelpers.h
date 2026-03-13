@@ -12,6 +12,8 @@ class UWidget;
 class UWidgetAnimation;
 class UPanelWidget;
 class UPanelSlot;
+class UMVVMBlueprintView;
+struct FMVVMBlueprintViewBinding;
 
 /**
  * Options for widget tree serialization.
@@ -22,6 +24,7 @@ struct FWidgetSerializeOptions
 	bool bIncludeProperties = false;
 	bool bIncludeBindings = false;
 	bool bIncludeAnimations = false;
+	bool bIncludeMVVMBindings = false;
 	FName FilterWidgetName = NAME_None; // If set, only serialize subtree rooted at this widget
 };
 
@@ -65,4 +68,19 @@ namespace ClaireonWidgetHelpers
 
 	/** Serialize detailed animation info (bindings, tracks, keyframes) to JSON. */
 	TSharedPtr<FJsonObject> SerializeAnimationDetails(UWidgetAnimation* Anim);
+
+	/** Get or lazily create the MVVM Blueprint View extension on a Widget Blueprint. */
+	UMVVMBlueprintView* GetOrCreateMVVMBlueprintView(UWidgetBlueprint* WidgetBP);
+
+	/** Get the MVVM Blueprint View (read-only, returns nullptr if none exists). */
+	const UMVVMBlueprintView* GetMVVMBlueprintView(const UWidgetBlueprint* WidgetBP);
+
+	/** Serialize all MVVM ViewModel contexts to a JSON object. */
+	TSharedPtr<FJsonObject> SerializeMVVMViewModelContexts(const UWidgetBlueprint* WidgetBP);
+
+	/** Serialize all MVVM bindings to a JSON object. */
+	TSharedPtr<FJsonObject> SerializeMVVMBindings(const UWidgetBlueprint* WidgetBP);
+
+	/** Serialize a single MVVM binding to a JSON object. */
+	TSharedPtr<FJsonObject> SerializeMVVMBinding(const UWidgetBlueprint* WidgetBP, const FMVVMBlueprintViewBinding& Binding);
 } // namespace ClaireonWidgetHelpers
