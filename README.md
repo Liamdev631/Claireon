@@ -193,7 +193,6 @@ PowerShell scripts for common Unreal Engine development tasks. All scripts auto-
 |--------|---------|
 | `Invoke-EditorBuild.ps1` | Build the editor (auto-detects target from .uproject) |
 | `Invoke-GenerateProjectFiles.ps1` | Generate VS project files and clang compilation database |
-| `Invoke-CompileBlueprints.ps1` | Compile all Blueprints and report errors |
 | `Invoke-ValidateAssets.ps1` | Validate asset integrity via ResavePackages |
 | `Invoke-ResaveAssets.ps1` | Resave specific assets via editor Python automation |
 | `Invoke-FixupRedirectors.ps1` | Fix up asset redirectors after moves/renames |

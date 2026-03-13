@@ -76,7 +76,7 @@ NNN-final-validation.md  — End-to-end validation of the complete implementatio
 5. **Test type and thoroughness scale with risk**:
    - **CPP changes** -> Almost always require a build verification via `Invoke-EditorBuild.ps1`
    - **Comment-only or doc-only changes** -> If the next stage also requires recompiling, skip the redundant build; instead, do a quick regex/grep check on the diffs for formatting correctness
-   - **Blueprint or asset changes** -> Use `Invoke-CompileBlueprints.ps1` or `Invoke-ValidateAssets.ps1`
+   - **Blueprint or asset changes** -> Use `Invoke-ValidateAssets.ps1` or compile blueprints using Claireon in a running editor
    - **Functional behavior changes** -> Use your project's test runner with appropriate test filters
    - **MCP tools or externally-callable systems** -> Call the tool directly via the MCP server with real project data. Exercise all operations, test error paths, verify round-trip persistence. Unit tests are insufficient here because the tool's external interface (JSON schema, error format, session lifecycle) is the contract being tested, not just internal logic.
    - **Full integration** -> Run end-to-end smoke tests (build + PIE)
@@ -128,7 +128,6 @@ Reference the appropriate script(s):
 
 - **Build check**: `Scripts\Utilities\Invoke-EditorBuild.ps1`
 - **Unit tests**: Your project's test runner with appropriate filters
-- **Blueprint compile**: `Scripts\Utilities\Invoke-CompileBlueprints.ps1`
 - **Asset validation**: `Scripts\Utilities\Invoke-ValidateAssets.ps1`
 - **Smoke test**: Your project's end-to-end test (build + PIE)
 - **Format check**: Your project's format checker on changed files
@@ -137,7 +136,7 @@ Reference the appropriate script(s):
 For the **final validation stage** (the last test stage in the breakdown), also include:
 - A code-reading checklist of architectural properties that runtime tests cannot catch: memory safety patterns, lock discipline (acquire/release/touch), transaction scoping, null-safety on weak pointers, TODO comment cleanup, API contract compliance
 - Verification that no test artifacts remain in the working tree
-- Blueprint compilation check (`Invoke-CompileBlueprints.ps1`) to catch dependency-related breakage
+- Blueprint compilation check using Claireon in a running editor to catch dependency-related breakage
 
 ## Commit
 Commit message for this stage (only for test stages or stages that produce committed work):
@@ -249,7 +248,6 @@ These scripts are available and should be invoked as specified in each stage:
 | Script | Purpose | Example |
 |--------|---------|---------|
 | `Scripts\Utilities\Invoke-EditorBuild.ps1` | Build the editor (waits for UBT by default) | `-SkipWaitForUBT` |
-| `Scripts\Utilities\Invoke-CompileBlueprints.ps1` | Compile all blueprints | |
 | `Scripts\Utilities\Invoke-ValidateAssets.ps1` | Validate asset integrity | |
 | `Scripts\Utilities\Invoke-CleanProject.ps1` | Clean build artifacts | `-IncludePlugins` |
 | `Scripts\Utilities\Invoke-FixupRedirectors.ps1` | Fix asset redirectors | |
