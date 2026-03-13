@@ -285,7 +285,7 @@ bool FClaireonServer::HandlePostRequest(const FHttpServerRequest& Request, const
 		AddDiagnosticsEntry(MoveTemp(Entry));
 
 		// Return 202 Accepted for notifications (no body)
-		auto Response = FHttpServerResponse::Create(TEXT(""), TEXT("text/plain"));
+		auto Response = FHttpServerResponse::Create(FString(TEXT("")), FString(TEXT("text/plain")));
 		OnComplete(MoveTemp(Response));
 		return true;
 	}
@@ -314,7 +314,7 @@ bool FClaireonServer::HandlePostRequest(const FHttpServerRequest& Request, const
 		AddDiagnosticsEntry(MoveTemp(Entry));
 	}
 
-	auto Response = FHttpServerResponse::Create(ResponseString, TEXT("application/json"));
+	auto Response = FHttpServerResponse::Create(ResponseString, FString(TEXT("application/json")));
 	OnComplete(MoveTemp(Response));
 	return true;
 }
@@ -322,7 +322,7 @@ bool FClaireonServer::HandlePostRequest(const FHttpServerRequest& Request, const
 bool FClaireonServer::HandleGetRequest(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
 	// SSE streaming deferred — return 405 Method Not Allowed
-	auto Response = FHttpServerResponse::Create(TEXT(""), TEXT("text/plain"));
+	auto Response = FHttpServerResponse::Create(FString(TEXT("")), FString(TEXT("text/plain")));
 	OnComplete(MoveTemp(Response));
 	return true;
 }
@@ -330,7 +330,7 @@ bool FClaireonServer::HandleGetRequest(const FHttpServerRequest& Request, const 
 bool FClaireonServer::HandleDeleteRequest(const FHttpServerRequest& Request, const FHttpResultCallback& OnComplete)
 {
 	// Session termination deferred — return 405 Method Not Allowed
-	auto Response = FHttpServerResponse::Create(TEXT(""), TEXT("text/plain"));
+	auto Response = FHttpServerResponse::Create(FString(TEXT("")), FString(TEXT("text/plain")));
 	OnComplete(MoveTemp(Response));
 	return true;
 }

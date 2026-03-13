@@ -367,8 +367,9 @@ void FClaireonAnthropicClient::OnHTTPResponse(
 				}
 				else
 				{
+					const FString FailureStr = LexToString(Request->GetFailureReason());
 					ErrorMsg = FString::Printf(TEXT("%s (%s)"),
-						*CategoryDesc, *LexToString(Request->GetFailureReason()));
+						*CategoryDesc, *FailureStr);
 				}
 			}
 
