@@ -23,6 +23,15 @@
 #include "ScopedTransaction.h"
 #include "HAL/FileManager.h"
 #include "UObject/UObjectIterator.h"
+#include "MVVMBlueprintView.h"
+#include "MVVMBlueprintViewBinding.h"
+#include "MVVMBlueprintViewModelContext.h"
+#include "MVVMWidgetBlueprintExtension_View.h"
+#include "MVVMPropertyPath.h"
+#include "MVVMBlueprintViewConversionFunction.h"
+#include "MVVMViewModelBase.h"
+#include "Types/MVVMBindingMode.h"
+#include "Types/MVVMFieldVariant.h"
 
 #define LOCTEXT_NAMESPACE "ClaireonTool_EditWidgetBP"
 
@@ -57,10 +66,10 @@ FString ClaireonTool_EditWidgetBP::GetFullDescription() const
 				"- get_state, compile, save, close: (no params beyond session_id)\n"
 				"- focus: params: widget_name (required)\n\n"
 				"Widget CRUD (session_id required):\n"
-				"- add_widget: params: widget_class (required), parent_name (optional), widget_name (optional)\n"
+				"- add_widget: params: widget_class (required), parent_name (optional), widget_name (optional), index (optional, insertion position)\n"
 				"- remove_widget: params: widget_name (required)\n"
-				"- move_widget: params: widget_name (required), new_parent_name (required)\n"
-				"- replace_widget: params: widget_name (required), new_widget_class (required)\n"
+				"- move_widget: params: widget_name (required), new_parent_name (required), index (optional, insertion position)\n"
+				"- replace_widget: params: widget_name (required), new_widget_class (required), preserve_children (optional, default true)\n"
 				"- rename_widget: params: widget_name (required), new_name (required)\n\n"
 				"Property operations (session_id required):\n"
 				"- set_widget_property: params: widget_name (required), property_name (required), value (required)\n"
@@ -72,7 +81,16 @@ FString ClaireonTool_EditWidgetBP::GetFullDescription() const
 				"- list_animations: (no params)\n"
 				"- import_widgets: params: widget_text (required)\n"
 				"- export_widgets: params: widget_names (required, array of strings)\n"
-				"- list_widget_classes: (no params)");
+				"- list_widget_classes: (no params)\n\n"
+				"MVVM ViewModel operations (session_id required):\n"
+				"- list_mvvm_viewmodels: (no params)\n"
+				"- add_mvvm_viewmodel: params: viewmodel_name (required), viewmodel_class (required), creation_type (optional, default \"Manual\"), optional (optional, default false)\n"
+				"- remove_mvvm_viewmodel: params: viewmodel_name (required)\n\n"
+				"MVVM Binding operations (session_id required):\n"
+				"- list_mvvm_bindings: (no params)\n"
+				"- add_mvvm_binding: params: viewmodel_name (required), viewmodel_property (required), widget_name (required), widget_property (required), mode (optional, default \"OneWayToDestination\"), enabled (optional, default true), conversion_function (optional)\n"
+				"- edit_mvvm_binding: params: binding_id (required), mode (optional), enabled (optional), viewmodel_property (optional), widget_property (optional), conversion_function (optional, empty string to clear)\n"
+				"- remove_mvvm_binding: params: binding_id (required)");
 }
 
 TSharedPtr<FJsonObject> ClaireonTool_EditWidgetBP::GetInputSchema() const
@@ -107,6 +125,13 @@ TSharedPtr<FJsonObject> ClaireonTool_EditWidgetBP::GetInputSchema() const
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("import_widgets")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("export_widgets")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("list_widget_classes")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("list_mvvm_viewmodels")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_mvvm_viewmodel")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_mvvm_viewmodel")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("list_mvvm_bindings")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_mvvm_binding")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("edit_mvvm_binding")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_mvvm_binding")));
 	OperationProp->SetArrayField(TEXT("enum"), OperationEnum);
 	OperationProp->SetStringField(TEXT("description"), TEXT("The editing operation to perform."));
 	Properties->SetObjectField(TEXT("operation"), OperationProp);
@@ -256,6 +281,34 @@ FToolResult ClaireonTool_EditWidgetBP::Execute(const TSharedPtr<FJsonObject>& Ar
 	if (Operation == TEXT("list_widget_classes"))
 	{
 		return Operation_ListWidgetClasses(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("list_mvvm_viewmodels"))
+	{
+		return Operation_ListMVVMViewModels(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("add_mvvm_viewmodel"))
+	{
+		return Operation_AddMVVMViewModel(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("remove_mvvm_viewmodel"))
+	{
+		return Operation_RemoveMVVMViewModel(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("list_mvvm_bindings"))
+	{
+		return Operation_ListMVVMBindings(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("add_mvvm_binding"))
+	{
+		return Operation_AddMVVMBinding(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("edit_mvvm_binding"))
+	{
+		return Operation_EditMVVMBinding(SessionId, Data, Params);
+	}
+	if (Operation == TEXT("remove_mvvm_binding"))
+	{
+		return Operation_RemoveMVVMBinding(SessionId, Data, Params);
 	}
 
 	return MakeErrorResult(FString::Printf(TEXT("Unknown operation: %s"), *Operation));
@@ -562,7 +615,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_Compile(const FString& SessionI
 	}
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
-	FKismetEditorUtilities::CompileBlueprint(WBP);
+	FKismetEditorUtilities::CompileBlueprint(WBP, EBlueprintCompileOptions::BatchCompile);
 
 	const bool bCompileSuccess = (WBP->Status == BS_UpToDate || WBP->Status == BS_UpToDateWithWarnings);
 	FString CompileStatus = bCompileSuccess ? TEXT("Success") : TEXT("Failed");
@@ -703,6 +756,9 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_AddWidget(const FString& Sessio
 	FString WidgetName;
 	Params->TryGetStringField(TEXT("widget_name"), WidgetName);
 
+	int32 InsertIndex = -1;
+	Params->TryGetNumberField(TEXT("index"), InsertIndex);
+
 	const TSharedPtr<FJsonObject>* SlotPropertiesPtr = nullptr;
 	TSharedPtr<FJsonObject> SlotProperties;
 	if (Params->TryGetObjectField(TEXT("slot_properties"), SlotPropertiesPtr) && SlotPropertiesPtr)
@@ -770,8 +826,23 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_AddWidget(const FString& Sessio
 	}
 	else if (ParentPanel)
 	{
-		// Add to parent panel
-		ClaireonWidgetHelpers::AddChildToPanel(ParentPanel, NewWidget, SlotProperties);
+		// Add to parent panel at specified index or end
+		if (InsertIndex >= 0)
+		{
+			UPanelSlot* Slot = ParentPanel->InsertChildAt(InsertIndex, NewWidget);
+			if (Slot && SlotProperties.IsValid())
+			{
+				for (auto& Pair : SlotProperties->Values)
+				{
+					FString Error;
+					ClaireonWidgetHelpers::WriteSlotProperty(Slot, Pair.Key, Pair.Value->AsString(), Error);
+				}
+			}
+		}
+		else
+		{
+			ClaireonWidgetHelpers::AddChildToPanel(ParentPanel, NewWidget, SlotProperties);
+		}
 	}
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
@@ -915,6 +986,9 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_ReplaceWidget(const FString& Se
 		return MakeErrorResult(TEXT("Missing required field: new_widget_class"));
 	}
 
+	bool bPreserveChildren = true;
+	Params->TryGetBoolField(TEXT("preserve_children"), bPreserveChildren);
+
 	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
 	if (!WBP || !WBP->WidgetTree)
 	{
@@ -938,6 +1012,17 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_ReplaceWidget(const FString& Se
 	FScopedTransaction Transaction(LOCTEXT("MCPReplaceWidget", "MCP: Replace Widget"));
 	Tree->SetFlags(RF_Transactional);
 	Tree->Modify();
+
+	// Collect children from old widget before replacing (if it's a panel)
+	TArray<UWidget*> OldChildren;
+	UPanelWidget* OldPanel = Cast<UPanelWidget>(OldWidget);
+	if (bPreserveChildren && OldPanel)
+	{
+		for (int32 i = 0; i < OldPanel->GetChildrenCount(); ++i)
+		{
+			OldChildren.Add(OldPanel->GetChildAt(i));
+		}
+	}
 
 	// Create new widget
 	UWidget* NewWidget = ClaireonWidgetHelpers::CreateWidget(Tree, NewClass, NAME_None);
@@ -963,6 +1048,25 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_ReplaceWidget(const FString& Se
 			ParentPanel->RemoveChild(OldWidget);
 			ParentPanel->AddChild(NewWidget);
 		}
+	}
+
+	// Reparent children to the new widget if it's a panel
+	UPanelWidget* NewPanel = Cast<UPanelWidget>(NewWidget);
+	if (OldChildren.Num() > 0 && NewPanel)
+	{
+		for (UWidget* Child : OldChildren)
+		{
+			if (OldPanel)
+			{
+				OldPanel->RemoveChild(Child);
+			}
+			NewPanel->AddChild(Child);
+		}
+		UE_LOG(LogClaireon, Log, TEXT("[EditWidgetBP] Reparented %d children to replacement widget"), OldChildren.Num());
+	}
+	else if (OldChildren.Num() > 0 && !NewPanel)
+	{
+		UE_LOG(LogClaireon, Warning, TEXT("[EditWidgetBP] Replacement widget '%s' is not a panel — %d children were lost"), *NewWidgetClassStr, OldChildren.Num());
 	}
 
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
@@ -1579,6 +1683,656 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_ListWidgetClasses(const FString
 	FJsonSerializer::Serialize(ResultObj.ToSharedRef(), Writer);
 
 	return MakeErrorResult(ResultString);
+}
+
+// ============================================================================
+// MVVM Helpers (local)
+// ============================================================================
+
+static bool ParseBindingMode(const FString& ModeStr, EMVVMBindingMode& OutMode)
+{
+	if (ModeStr == TEXT("OneWayToDestination")) { OutMode = EMVVMBindingMode::OneWayToDestination; return true; }
+	if (ModeStr == TEXT("OneWayToSource")) { OutMode = EMVVMBindingMode::OneWayToSource; return true; }
+	if (ModeStr == TEXT("TwoWay")) { OutMode = EMVVMBindingMode::TwoWay; return true; }
+	if (ModeStr == TEXT("OneTimeToDestination")) { OutMode = EMVVMBindingMode::OneTimeToDestination; return true; }
+	if (ModeStr == TEXT("OneTimeToSource")) { OutMode = EMVVMBindingMode::OneTimeToSource; return true; }
+	return false;
+}
+
+static bool ParseCreationType(const FString& TypeStr, EMVVMBlueprintViewModelContextCreationType& OutType)
+{
+	if (TypeStr == TEXT("Manual")) { OutType = EMVVMBlueprintViewModelContextCreationType::Manual; return true; }
+	if (TypeStr == TEXT("CreateInstance")) { OutType = EMVVMBlueprintViewModelContextCreationType::CreateInstance; return true; }
+	if (TypeStr == TEXT("GlobalViewModelCollection")) { OutType = EMVVMBlueprintViewModelContextCreationType::GlobalViewModelCollection; return true; }
+	if (TypeStr == TEXT("PropertyPath")) { OutType = EMVVMBlueprintViewModelContextCreationType::PropertyPath; return true; }
+	if (TypeStr == TEXT("Resolver")) { OutType = EMVVMBlueprintViewModelContextCreationType::Resolver; return true; }
+	return false;
+}
+
+/**
+ * Resolve a property path string (dot-separated) against a starting UClass.
+ * Sets up the FMVVMBlueprintPropertyPath fields using SetPropertyPath/AppendPropertyPath.
+ * Returns false and sets OutError on failure.
+ */
+static bool ResolvePropertyPath(
+	UWidgetBlueprint* WBP,
+	FMVVMBlueprintPropertyPath& Path,
+	UClass* StartClass,
+	const FString& PropertyPathStr,
+	FString& OutError)
+{
+	TArray<FString> Segments;
+	PropertyPathStr.ParseIntoArray(Segments, TEXT("."), true);
+
+	if (Segments.Num() == 0)
+	{
+		OutError = FString::Printf(TEXT("Property path is empty"));
+		return false;
+	}
+
+	UStruct* CurrentStruct = StartClass;
+	for (int32 i = 0; i < Segments.Num(); ++i)
+	{
+		if (!CurrentStruct)
+		{
+			OutError = FString::Printf(TEXT("Cannot resolve segment '%s' — no struct context at depth %d"), *Segments[i], i);
+			return false;
+		}
+
+		const FProperty* Prop = CurrentStruct->FindPropertyByName(FName(*Segments[i]));
+		if (!Prop)
+		{
+			OutError = FString::Printf(TEXT("Property '%s' not found on %s"), *Segments[i], *CurrentStruct->GetName());
+			return false;
+		}
+
+		UE::MVVM::FMVVMConstFieldVariant FieldVariant(Prop);
+		if (i == 0)
+		{
+			Path.SetPropertyPath(WBP, FieldVariant);
+		}
+		else
+		{
+			Path.AppendPropertyPath(WBP, FieldVariant);
+		}
+
+		// Advance current struct for next segment
+		if (const FStructProperty* StructProp = CastField<FStructProperty>(Prop))
+		{
+			CurrentStruct = StructProp->Struct;
+		}
+		else if (const FObjectPropertyBase* ObjProp = CastField<FObjectPropertyBase>(Prop))
+		{
+			CurrentStruct = ObjProp->PropertyClass;
+		}
+		else
+		{
+			// Primitive — no further nesting possible
+			CurrentStruct = nullptr;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Resolve a conversion function name to a UFunction*.
+ * Tries: full path, Class::Function, self-context.
+ */
+static const UFunction* ResolveConversionFunction(
+	UWidgetBlueprint* WBP,
+	const FString& FunctionNameStr,
+	FString& OutError)
+{
+	// 1. Full path
+	const UFunction* Func = FindObject<UFunction>(nullptr, *FunctionNameStr);
+	if (Func)
+	{
+		if (UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(WBP, Func))
+		{
+			return Func;
+		}
+		OutError = FString::Printf(TEXT("Function '%s' found but is not a valid MVVM conversion function"), *FunctionNameStr);
+		return nullptr;
+	}
+
+	// 2. Class::Function format
+	FString ClassName, FuncName;
+	if (FunctionNameStr.Split(TEXT("::"), &ClassName, &FuncName))
+	{
+		// Strip leading 'U' if present for class lookup
+		UClass* FoundClass = FindFirstObject<UClass>(*ClassName, EFindFirstObjectOptions::NativeFirst);
+		if (!FoundClass && ClassName.StartsWith(TEXT("U")))
+		{
+			FoundClass = FindFirstObject<UClass>(*ClassName.Mid(1), EFindFirstObjectOptions::NativeFirst);
+		}
+		if (FoundClass)
+		{
+			Func = FoundClass->FindFunctionByName(FName(*FuncName));
+			if (Func)
+			{
+				if (UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(WBP, Func))
+				{
+					return Func;
+				}
+				OutError = FString::Printf(TEXT("Function '%s::%s' found but is not a valid MVVM conversion function"), *ClassName, *FuncName);
+				return nullptr;
+			}
+		}
+	}
+
+	// 3. Self-context: search WBP generated class hierarchy
+	if (WBP->GeneratedClass)
+	{
+		Func = WBP->GeneratedClass->FindFunctionByName(FName(*FunctionNameStr));
+		if (Func)
+		{
+			if (UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(WBP, Func))
+			{
+				return Func;
+			}
+			OutError = FString::Printf(TEXT("Function '%s' found on self but is not a valid MVVM conversion function"), *FunctionNameStr);
+			return nullptr;
+		}
+	}
+
+	OutError = FString::Printf(TEXT("Conversion function '%s' not found"), *FunctionNameStr);
+	return nullptr;
+}
+
+// ============================================================================
+// MVVM ViewModel Operations
+// ============================================================================
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_ListMVVMViewModels(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	TSharedPtr<FJsonObject> Result = ClaireonWidgetHelpers::SerializeMVVMViewModelContexts(WBP);
+	int32 Count = 0;
+	if (Result.IsValid())
+	{
+		Count = static_cast<int32>(Result->GetNumberField(TEXT("count")));
+	}
+
+	return MakeSuccessResult(Result, FString::Printf(TEXT("Found %d MVVM ViewModel context(s)"), Count));
+}
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_AddMVVMViewModel(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	FString ViewModelName;
+	if (!Params->TryGetStringField(TEXT("viewmodel_name"), ViewModelName) || ViewModelName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: viewmodel_name"));
+	}
+
+	FString ViewModelClassStr;
+	if (!Params->TryGetStringField(TEXT("viewmodel_class"), ViewModelClassStr) || ViewModelClassStr.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: viewmodel_class"));
+	}
+
+	// Resolve viewmodel class
+	UClass* VMClass = FindFirstObject<UClass>(*ViewModelClassStr, EFindFirstObjectOptions::NativeFirst);
+	if (!VMClass)
+	{
+		VMClass = LoadClass<UMVVMViewModelBase>(nullptr, *ViewModelClassStr);
+	}
+	if (!VMClass)
+	{
+		// Try with 'U' prefix
+		VMClass = FindFirstObject<UClass>(*FString::Printf(TEXT("U%s"), *ViewModelClassStr), EFindFirstObjectOptions::NativeFirst);
+	}
+	if (!VMClass || !VMClass->IsChildOf(UMVVMViewModelBase::StaticClass()))
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Could not resolve '%s' to a UMVVMViewModelBase subclass"), *ViewModelClassStr));
+	}
+
+	// Parse optional params
+	FString CreationTypeStr;
+	EMVVMBlueprintViewModelContextCreationType CreationType = EMVVMBlueprintViewModelContextCreationType::Manual;
+	if (Params->TryGetStringField(TEXT("creation_type"), CreationTypeStr) && !CreationTypeStr.IsEmpty())
+	{
+		if (!ParseCreationType(CreationTypeStr, CreationType))
+		{
+			return MakeErrorResult(FString::Printf(TEXT("Invalid creation_type: '%s'. Valid values: Manual, CreateInstance, GlobalViewModelCollection, PropertyPath, Resolver"), *CreationTypeStr));
+		}
+	}
+
+	bool bOptional = false;
+	Params->TryGetBoolField(TEXT("optional"), bOptional);
+
+	// Get or create MVVM view
+	UMVVMBlueprintView* View = ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(WBP);
+	if (!View)
+	{
+		return MakeErrorResult(TEXT("Failed to get or create MVVM Blueprint View"));
+	}
+
+	// Check for duplicate
+	if (View->FindViewModel(FName(*ViewModelName)) != nullptr)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("ViewModel with name '%s' already exists"), *ViewModelName));
+	}
+
+	// Construct and add context
+	FScopedTransaction Transaction(LOCTEXT("MCPAddMVVMViewModel", "MCP: Add MVVM ViewModel"));
+
+	FMVVMBlueprintViewModelContext Context;
+	Context.ViewModelName = FName(*ViewModelName);
+	Context.NotifyFieldValueClass = VMClass;
+	Context.CreationType = CreationType;
+	Context.bOptional = bOptional;
+
+	View->AddViewModel(Context);
+
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
+	Data->bModified = true;
+
+	// Return the created context info
+	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+	ResultObj->SetStringField(TEXT("viewmodel_name"), ViewModelName);
+	ResultObj->SetStringField(TEXT("viewmodel_class"), VMClass->GetPathName());
+	ResultObj->SetStringField(TEXT("creation_type"), CreationTypeStr.IsEmpty() ? TEXT("Manual") : *CreationTypeStr);
+	ResultObj->SetBoolField(TEXT("optional"), bOptional);
+
+	// Try to get the assigned GUID
+	const FMVVMBlueprintViewModelContext* Added = View->FindViewModel(FName(*ViewModelName));
+	if (Added)
+	{
+		ResultObj->SetStringField(TEXT("id"), Added->GetViewModelId().ToString());
+	}
+
+	return MakeSuccessResult(ResultObj, FString::Printf(TEXT("Added MVVM ViewModel '%s' (%s)"), *ViewModelName, *VMClass->GetName()));
+}
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_RemoveMVVMViewModel(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	FString ViewModelName;
+	if (!Params->TryGetStringField(TEXT("viewmodel_name"), ViewModelName) || ViewModelName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: viewmodel_name"));
+	}
+
+	const UMVVMBlueprintView* View = ClaireonWidgetHelpers::GetMVVMBlueprintView(WBP);
+	if (!View)
+	{
+		return MakeErrorResult(TEXT("No MVVM Blueprint View exists on this widget blueprint"));
+	}
+
+	const FMVVMBlueprintViewModelContext* Context = View->FindViewModel(FName(*ViewModelName));
+	if (!Context)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("ViewModel '%s' not found"), *ViewModelName));
+	}
+
+	FGuid VMId = Context->GetViewModelId();
+
+	FScopedTransaction Transaction(LOCTEXT("MCPRemoveMVVMViewModel", "MCP: Remove MVVM ViewModel"));
+
+	// Need non-const view for mutation
+	UMVVMBlueprintView* MutableView = ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(WBP);
+	bool bRemoved = MutableView->RemoveViewModel(VMId);
+	if (!bRemoved)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Failed to remove ViewModel '%s'"), *ViewModelName));
+	}
+
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
+	Data->bModified = true;
+
+	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+	ResultObj->SetStringField(TEXT("removed_viewmodel"), ViewModelName);
+
+	return MakeSuccessResult(ResultObj, FString::Printf(TEXT("Removed MVVM ViewModel '%s'"), *ViewModelName));
+}
+
+// ============================================================================
+// MVVM Binding Operations
+// ============================================================================
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_ListMVVMBindings(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	TSharedPtr<FJsonObject> Result = ClaireonWidgetHelpers::SerializeMVVMBindings(WBP);
+	int32 Count = 0;
+	if (Result.IsValid())
+	{
+		Count = static_cast<int32>(Result->GetNumberField(TEXT("count")));
+	}
+
+	return MakeSuccessResult(Result, FString::Printf(TEXT("Found %d MVVM binding(s)"), Count));
+}
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_AddMVVMBinding(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	// Required params
+	FString ViewModelName, ViewModelProperty, WidgetNameStr, WidgetProperty;
+	if (!Params->TryGetStringField(TEXT("viewmodel_name"), ViewModelName) || ViewModelName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: viewmodel_name"));
+	}
+	if (!Params->TryGetStringField(TEXT("viewmodel_property"), ViewModelProperty) || ViewModelProperty.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: viewmodel_property"));
+	}
+	if (!Params->TryGetStringField(TEXT("widget_name"), WidgetNameStr) || WidgetNameStr.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: widget_name"));
+	}
+	if (!Params->TryGetStringField(TEXT("widget_property"), WidgetProperty) || WidgetProperty.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: widget_property"));
+	}
+
+	// Optional params
+	FString ModeStr = TEXT("OneWayToDestination");
+	Params->TryGetStringField(TEXT("mode"), ModeStr);
+	EMVVMBindingMode BindingMode;
+	if (!ParseBindingMode(ModeStr, BindingMode))
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Invalid mode: '%s'. Valid: OneWayToDestination, OneWayToSource, TwoWay, OneTimeToDestination, OneTimeToSource"), *ModeStr));
+	}
+
+	bool bEnabled = true;
+	Params->TryGetBoolField(TEXT("enabled"), bEnabled);
+
+	FString ConversionFunctionStr;
+	Params->TryGetStringField(TEXT("conversion_function"), ConversionFunctionStr);
+
+	// Validate MVVM view exists
+	UMVVMBlueprintView* View = ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(WBP);
+	if (!View)
+	{
+		return MakeErrorResult(TEXT("Failed to get or create MVVM Blueprint View"));
+	}
+
+	// Find ViewModel context
+	const FMVVMBlueprintViewModelContext* VMContext = View->FindViewModel(FName(*ViewModelName));
+	if (!VMContext)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("ViewModel '%s' not found. Add it first with add_mvvm_viewmodel."), *ViewModelName));
+	}
+
+	// Validate widget exists
+	UWidget* Widget = ClaireonWidgetHelpers::FindWidgetByName(WBP->WidgetTree, FName(*WidgetNameStr));
+	if (!Widget)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Widget '%s' not found in the widget tree"), *WidgetNameStr));
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("MCPAddMVVMBinding", "MCP: Add MVVM Binding"));
+
+	FMVVMBlueprintViewBinding& NewBinding = View->AddDefaultBinding();
+
+	// Configure source path (ViewModel)
+	FMVVMBlueprintPropertyPath SourcePath;
+	SourcePath.SetViewModelId(VMContext->GetViewModelId());
+	{
+		FString Error;
+		UClass* VMClass = VMContext->GetViewModelClass();
+		if (!VMClass)
+		{
+			View->RemoveBinding(&NewBinding);
+			return MakeErrorResult(TEXT("ViewModel class is null"));
+		}
+		if (!ResolvePropertyPath(WBP, SourcePath, VMClass, ViewModelProperty, Error))
+		{
+			View->RemoveBinding(&NewBinding);
+			return MakeErrorResult(FString::Printf(TEXT("Failed to resolve viewmodel property path '%s': %s"), *ViewModelProperty, *Error));
+		}
+	}
+	NewBinding.SourcePath = SourcePath;
+
+	// Configure destination path (Widget)
+	FMVVMBlueprintPropertyPath DestPath;
+	DestPath.SetWidgetName(FName(*WidgetNameStr));
+	{
+		FString Error;
+		if (!ResolvePropertyPath(WBP, DestPath, Widget->GetClass(), WidgetProperty, Error))
+		{
+			View->RemoveBinding(&NewBinding);
+			return MakeErrorResult(FString::Printf(TEXT("Failed to resolve widget property path '%s': %s"), *WidgetProperty, *Error));
+		}
+	}
+	NewBinding.DestinationPath = DestPath;
+
+	NewBinding.BindingType = BindingMode;
+	NewBinding.bEnabled = bEnabled;
+	NewBinding.bCompile = true;
+
+	// Stage 004: Conversion function support
+	if (!ConversionFunctionStr.IsEmpty())
+	{
+		FString ConvError;
+		const UFunction* ConvFunc = ResolveConversionFunction(WBP, ConversionFunctionStr, ConvError);
+		if (!ConvFunc)
+		{
+			View->RemoveBinding(&NewBinding);
+			return MakeErrorResult(FString::Printf(TEXT("Failed to resolve conversion function '%s': %s"), *ConversionFunctionStr, *ConvError));
+		}
+
+		UMVVMBlueprintViewConversionFunction* ConvObj = NewObject<UMVVMBlueprintViewConversionFunction>(View);
+		FName GraphName = MakeUniqueObjectName(WBP, UEdGraph::StaticClass(), TEXT("MVVM_Conv"));
+		ConvObj->InitializeFromFunction(WBP, GraphName, ConvFunc);
+		NewBinding.Conversion.SourceToDestinationConversion = ConvObj;
+	}
+
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
+	Data->bModified = true;
+
+	TSharedPtr<FJsonObject> ResultObj = ClaireonWidgetHelpers::SerializeMVVMBinding(WBP, NewBinding);
+	return MakeSuccessResult(ResultObj, FString::Printf(TEXT("Added MVVM binding: %s.%s -> %s.%s"), *ViewModelName, *ViewModelProperty, *WidgetNameStr, *WidgetProperty));
+}
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_EditMVVMBinding(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	FString BindingIdStr;
+	if (!Params->TryGetStringField(TEXT("binding_id"), BindingIdStr) || BindingIdStr.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: binding_id"));
+	}
+
+	FGuid BindingId;
+	if (!FGuid::Parse(BindingIdStr, BindingId))
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Invalid binding_id GUID: '%s'"), *BindingIdStr));
+	}
+
+	UMVVMBlueprintView* View = ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(WBP);
+	if (!View)
+	{
+		return MakeErrorResult(TEXT("No MVVM Blueprint View exists"));
+	}
+
+	FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId);
+	if (!Binding)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Binding with id '%s' not found"), *BindingIdStr));
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("MCPEditMVVMBinding", "MCP: Edit MVVM Binding"));
+
+	// Optional: mode
+	FString ModeStr;
+	if (Params->TryGetStringField(TEXT("mode"), ModeStr) && !ModeStr.IsEmpty())
+	{
+		EMVVMBindingMode NewMode;
+		if (!ParseBindingMode(ModeStr, NewMode))
+		{
+			return MakeErrorResult(FString::Printf(TEXT("Invalid mode: '%s'"), *ModeStr));
+		}
+		Binding->BindingType = NewMode;
+	}
+
+	// Optional: enabled
+	bool bEnabled;
+	if (Params->TryGetBoolField(TEXT("enabled"), bEnabled))
+	{
+		Binding->bEnabled = bEnabled;
+	}
+
+	// Optional: viewmodel_property
+	FString ViewModelProperty;
+	if (Params->TryGetStringField(TEXT("viewmodel_property"), ViewModelProperty) && !ViewModelProperty.IsEmpty())
+	{
+		// We need the ViewModel class from the source path
+		FGuid VMId = Binding->SourcePath.GetViewModelId();
+		const FMVVMBlueprintViewModelContext* VMContext = View->FindViewModel(VMId);
+		if (!VMContext)
+		{
+			return MakeErrorResult(TEXT("Cannot update viewmodel_property: ViewModel context not found for this binding's source"));
+		}
+		UClass* VMClass = VMContext->GetViewModelClass();
+		if (!VMClass)
+		{
+			return MakeErrorResult(TEXT("ViewModel class is null"));
+		}
+
+		FMVVMBlueprintPropertyPath NewSourcePath;
+		NewSourcePath.SetViewModelId(VMId);
+		FString Error;
+		if (!ResolvePropertyPath(WBP, NewSourcePath, VMClass, ViewModelProperty, Error))
+		{
+			return MakeErrorResult(FString::Printf(TEXT("Failed to resolve viewmodel property path '%s': %s"), *ViewModelProperty, *Error));
+		}
+		Binding->SourcePath = NewSourcePath;
+	}
+
+	// Optional: widget_property
+	FString WidgetProperty;
+	if (Params->TryGetStringField(TEXT("widget_property"), WidgetProperty) && !WidgetProperty.IsEmpty())
+	{
+		FName WidgetName = Binding->DestinationPath.GetWidgetName();
+		UWidget* Widget = ClaireonWidgetHelpers::FindWidgetByName(WBP->WidgetTree, WidgetName);
+		if (!Widget)
+		{
+			return MakeErrorResult(FString::Printf(TEXT("Widget '%s' not found in the tree for property path update"), *WidgetName.ToString()));
+		}
+
+		FMVVMBlueprintPropertyPath NewDestPath;
+		NewDestPath.SetWidgetName(WidgetName);
+		FString Error;
+		if (!ResolvePropertyPath(WBP, NewDestPath, Widget->GetClass(), WidgetProperty, Error))
+		{
+			return MakeErrorResult(FString::Printf(TEXT("Failed to resolve widget property path '%s': %s"), *WidgetProperty, *Error));
+		}
+		Binding->DestinationPath = NewDestPath;
+	}
+
+	// Optional: conversion_function (Stage 004)
+	FString ConversionFunctionStr;
+	if (Params->TryGetStringField(TEXT("conversion_function"), ConversionFunctionStr))
+	{
+		if (ConversionFunctionStr.IsEmpty())
+		{
+			// Clear conversion
+			UMVVMBlueprintViewConversionFunction* Existing = Binding->Conversion.GetConversionFunction(/*bSourceToDestination=*/ true);
+			if (Existing)
+			{
+				Existing->RemoveWrapperGraph(WBP);
+			}
+			Binding->Conversion.SourceToDestinationConversion = nullptr;
+		}
+		else
+		{
+			FString ConvError;
+			const UFunction* ConvFunc = ResolveConversionFunction(WBP, ConversionFunctionStr, ConvError);
+			if (!ConvFunc)
+			{
+				return MakeErrorResult(FString::Printf(TEXT("Failed to resolve conversion function '%s': %s"), *ConversionFunctionStr, *ConvError));
+			}
+
+			UMVVMBlueprintViewConversionFunction* ConvObj = NewObject<UMVVMBlueprintViewConversionFunction>(View);
+			FName GraphName = MakeUniqueObjectName(WBP, UEdGraph::StaticClass(), TEXT("MVVM_Conv"));
+			ConvObj->InitializeFromFunction(WBP, GraphName, ConvFunc);
+			Binding->Conversion.SourceToDestinationConversion = ConvObj;
+		}
+	}
+
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
+	Data->bModified = true;
+
+	TSharedPtr<FJsonObject> ResultObj = ClaireonWidgetHelpers::SerializeMVVMBinding(WBP, *Binding);
+	return MakeSuccessResult(ResultObj, FString::Printf(TEXT("Updated MVVM binding '%s'"), *BindingIdStr));
+}
+
+FToolResult ClaireonTool_EditWidgetBP::Operation_RemoveMVVMBinding(const FString& SessionId, FWidgetBPEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UWidgetBlueprint* WBP = Data->WidgetBlueprint.Get();
+	if (!WBP)
+	{
+		return MakeErrorResult(TEXT("Widget Blueprint is no longer valid"));
+	}
+
+	FString BindingIdStr;
+	if (!Params->TryGetStringField(TEXT("binding_id"), BindingIdStr) || BindingIdStr.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required param: binding_id"));
+	}
+
+	FGuid BindingId;
+	if (!FGuid::Parse(BindingIdStr, BindingId))
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Invalid binding_id GUID: '%s'"), *BindingIdStr));
+	}
+
+	UMVVMBlueprintView* View = ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(WBP);
+	if (!View)
+	{
+		return MakeErrorResult(TEXT("No MVVM Blueprint View exists"));
+	}
+
+	FMVVMBlueprintViewBinding* Binding = View->GetBinding(BindingId);
+	if (!Binding)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Binding with id '%s' not found"), *BindingIdStr));
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("MCPRemoveMVVMBinding", "MCP: Remove MVVM Binding"));
+
+	View->RemoveBinding(Binding);
+
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WBP);
+	Data->bModified = true;
+
+	TSharedPtr<FJsonObject> ResultObj = MakeShared<FJsonObject>();
+	ResultObj->SetStringField(TEXT("removed_binding_id"), BindingIdStr);
+
+	return MakeSuccessResult(ResultObj, FString::Printf(TEXT("Removed MVVM binding '%s'"), *BindingIdStr));
 }
 
 #undef LOCTEXT_NAMESPACE
