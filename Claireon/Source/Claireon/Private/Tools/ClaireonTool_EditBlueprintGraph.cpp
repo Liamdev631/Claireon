@@ -12,6 +12,8 @@
 // K2Node type includes for node creation
 #include "K2Node_CallFunction.h"
 #include "K2Node_Event.h"
+#include "K2Node_CallParentFunction.h"
+#include "K2Node_Timeline.h"
 #include "K2Node_CustomEvent.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
@@ -39,6 +41,9 @@
 #include "K2Node_SwitchEnum.h"
 #include "K2Node_ForEachElementInEnum.h"
 #include "K2Node_DoOnceMultiInput.h"
+#include "Engine/TimelineTemplate.h"
+#include "Curves/CurveFloat.h"
+#include "Curves/CurveVector.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "EdGraphUtilities.h"
@@ -1274,6 +1279,308 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_AddNode(const FString& Se
 		}
 
 		NodeDescription = FString::Printf(TEXT("Generic: %s"), *ClassName);
+	}
+	else if (NodeType == TEXT("EventOverride"))
+	{
+		FString FunctionName;
+		if (!Params->TryGetStringField(TEXT("function_name"), FunctionName))
+		{
+			return MakeErrorResult(TEXT("Missing required field 'function_name' for EventOverride node"));
+		}
+
+		UClass* ParentClass = Blueprint->ParentClass;
+		UFunction* TargetFunc = ParentClass
+			? ParentClass->FindFunctionByName(FName(*FunctionName))
+			: nullptr;
+
+		if (!TargetFunc)
+		{
+			return MakeErrorResult(FString::Printf(
+				TEXT("Function '%s' not found on parent class '%s'"),
+				*FunctionName, *GetNameSafe(ParentClass)));
+		}
+
+		if (!TargetFunc->HasAnyFunctionFlags(FUNC_BlueprintEvent))
+		{
+			return MakeErrorResult(FString::Printf(
+				TEXT("Function '%s' is not a BlueprintNativeEvent or BlueprintImplementableEvent"),
+				*FunctionName));
+		}
+
+		// Check for existing override
+		UK2Node_Event* ExistingOverride = FBlueprintEditorUtils::FindOverrideForFunction(
+			Blueprint, ParentClass, TargetFunc->GetFName());
+		if (ExistingOverride)
+		{
+			return MakeErrorResult(FString::Printf(
+				TEXT("Override for '%s' already exists (node GUID: %s)"),
+				*FunctionName, *ExistingOverride->NodeGuid.ToString()));
+		}
+
+		UK2Node_Event* EventNode = NewObject<UK2Node_Event>(Graph);
+		EventNode->EventReference.SetExternalMember(TargetFunc->GetFName(), ParentClass);
+		EventNode->bOverrideFunction = true;
+
+		NewNode = EventNode;
+		NodeDescription = FString::Printf(TEXT("Event Override: %s"), *FunctionName);
+	}
+	else if (NodeType == TEXT("CallParentFunction"))
+	{
+		FString FunctionName;
+		if (!Params->TryGetStringField(TEXT("function_name"), FunctionName))
+		{
+			return MakeErrorResult(TEXT("Missing required field 'function_name' for CallParentFunction node"));
+		}
+
+		UClass* ParentClass = Blueprint->ParentClass;
+		UFunction* TargetFunc = ParentClass
+			? ParentClass->FindFunctionByName(FName(*FunctionName))
+			: nullptr;
+
+		if (!TargetFunc)
+		{
+			return MakeErrorResult(FString::Printf(
+				TEXT("Function '%s' not found on parent class '%s'"),
+				*FunctionName, *GetNameSafe(ParentClass)));
+		}
+
+		UK2Node_CallParentFunction* ParentCallNode =
+			NewObject<UK2Node_CallParentFunction>(Graph);
+		ParentCallNode->SetFromFunction(TargetFunc);
+
+		NewNode = ParentCallNode;
+		NodeDescription = FString::Printf(TEXT("Call Parent: %s"), *FunctionName);
+	}
+	else if (NodeType == TEXT("Timeline"))
+	{
+		FString TimelineName;
+		if (!Params->TryGetStringField(TEXT("timeline_name"), TimelineName))
+		{
+			return MakeErrorResult(TEXT("Missing required field 'timeline_name' for Timeline node"));
+		}
+
+		// Check for duplicate using canonical lookup (handles _Template naming)
+		if (Blueprint->FindTimelineTemplateByVariableName(FName(*TimelineName)))
+		{
+			return MakeErrorResult(FString::Printf(
+				TEXT("Timeline '%s' already exists in this Blueprint"), *TimelineName));
+		}
+
+		// Create the UK2Node_Timeline
+		UK2Node_Timeline* TimelineNode = NewObject<UK2Node_Timeline>(Graph);
+		TimelineNode->TimelineName = FName(*TimelineName);
+
+		// Use engine utility to create UTimelineTemplate with correct naming,
+		// Outer (GeneratedClass), RF_Transactional, and child BP validation
+		UTimelineTemplate* TimelineTemplate =
+			FBlueprintEditorUtils::AddNewTimeline(Blueprint, FName(*TimelineName));
+
+		if (!TimelineTemplate)
+		{
+			return MakeErrorResult(FString::Printf(
+				TEXT("Failed to create timeline '%s' — Blueprint may not support timelines"),
+				*TimelineName));
+		}
+
+		// Synchronize TimelineGuid so copy/paste works correctly
+		TimelineNode->TimelineGuid = TimelineTemplate->TimelineGuid;
+
+		bool bAutoplay = false;
+		Params->TryGetBoolField(TEXT("autoplay"), bAutoplay);
+		TimelineTemplate->bAutoPlay = bAutoplay;
+
+		bool bLoop = false;
+		Params->TryGetBoolField(TEXT("loop"), bLoop);
+		TimelineTemplate->bLoop = bLoop;
+
+		double MaxKeyTime = 0.0;
+
+		// --- Add float tracks ---
+		const TArray<TSharedPtr<FJsonValue>>* FloatTracksArray = nullptr;
+		if (Params->TryGetArrayField(TEXT("float_tracks"), FloatTracksArray))
+		{
+			for (const auto& TrackVal : *FloatTracksArray)
+			{
+				const TSharedPtr<FJsonObject>& TrackObj = TrackVal->AsObject();
+				if (!TrackObj) continue;
+
+				FString TrackName;
+				TrackObj->TryGetStringField(TEXT("track_name"), TrackName);
+
+				FTTFloatTrack FloatTrack;
+				FloatTrack.SetTrackName(FName(*TrackName), TimelineTemplate);
+
+				// Create UCurveFloat UObject for the track's curve data
+				FName CurveName = *FString::Printf(TEXT("%s_%s_Curve"),
+					*TimelineName, *TrackName);
+				UCurveFloat* CurveFloat = NewObject<UCurveFloat>(
+					Blueprint->GeneratedClass, CurveName);
+				FloatTrack.CurveFloat = CurveFloat;
+
+				// Populate curve keys on CurveFloat->FloatCurve (the actual FRichCurve)
+				FString Interp = TEXT("linear");
+				TrackObj->TryGetStringField(TEXT("interpolation"), Interp);
+
+				const TArray<TSharedPtr<FJsonValue>>* KeysArray = nullptr;
+				if (TrackObj->TryGetArrayField(TEXT("keys"), KeysArray))
+				{
+					for (const auto& KeyVal : *KeysArray)
+					{
+						const TSharedPtr<FJsonObject>& KeyObj = KeyVal->AsObject();
+						if (!KeyObj) continue;
+
+						double Time = 0.0, Value = 0.0;
+						KeyObj->TryGetNumberField(TEXT("time"), Time);
+						KeyObj->TryGetNumberField(TEXT("value"), Value);
+
+						FKeyHandle Handle = CurveFloat->FloatCurve.AddKey(
+							static_cast<float>(Time), static_cast<float>(Value));
+
+						if (Interp == TEXT("constant"))
+							CurveFloat->FloatCurve.SetKeyInterpMode(
+								Handle, ERichCurveInterpMode::RCIM_Constant);
+						else if (Interp == TEXT("cubic"))
+							CurveFloat->FloatCurve.SetKeyInterpMode(
+								Handle, ERichCurveInterpMode::RCIM_Cubic);
+						else
+							CurveFloat->FloatCurve.SetKeyInterpMode(
+								Handle, ERichCurveInterpMode::RCIM_Linear);
+
+						MaxKeyTime = FMath::Max(MaxKeyTime, Time);
+					}
+				}
+
+				TimelineTemplate->FloatTracks.Add(FloatTrack);
+				TimelineTemplate->AddDisplayTrack(
+					FTTTrackId(FTTTrackBase::TT_FloatInterp,
+						TimelineTemplate->FloatTracks.Num() - 1));
+			}
+		}
+
+		// --- Add vector tracks ---
+		const TArray<TSharedPtr<FJsonValue>>* VectorTracksArray = nullptr;
+		if (Params->TryGetArrayField(TEXT("vector_tracks"), VectorTracksArray))
+		{
+			for (const auto& TrackVal : *VectorTracksArray)
+			{
+				const TSharedPtr<FJsonObject>& TrackObj = TrackVal->AsObject();
+				if (!TrackObj) continue;
+
+				FString TrackName;
+				TrackObj->TryGetStringField(TEXT("track_name"), TrackName);
+
+				FTTVectorTrack VectorTrack;
+				VectorTrack.SetTrackName(FName(*TrackName), TimelineTemplate);
+
+				FName CurveName = *FString::Printf(TEXT("%s_%s_Curve"),
+					*TimelineName, *TrackName);
+				UCurveVector* CurveVector = NewObject<UCurveVector>(
+					Blueprint->GeneratedClass, CurveName);
+				VectorTrack.CurveVector = CurveVector;
+
+				FString Interp = TEXT("linear");
+				TrackObj->TryGetStringField(TEXT("interpolation"), Interp);
+
+				const TArray<TSharedPtr<FJsonValue>>* KeysArray = nullptr;
+				if (TrackObj->TryGetArrayField(TEXT("keys"), KeysArray))
+				{
+					for (const auto& KeyVal : *KeysArray)
+					{
+						const TSharedPtr<FJsonObject>& KeyObj = KeyVal->AsObject();
+						if (!KeyObj) continue;
+
+						double Time = 0.0, X = 0.0, Y = 0.0, Z = 0.0;
+						KeyObj->TryGetNumberField(TEXT("time"), Time);
+						KeyObj->TryGetNumberField(TEXT("x"), X);
+						KeyObj->TryGetNumberField(TEXT("y"), Y);
+						KeyObj->TryGetNumberField(TEXT("z"), Z);
+
+						ERichCurveInterpMode InterpMode = ERichCurveInterpMode::RCIM_Linear;
+						if (Interp == TEXT("constant"))
+							InterpMode = ERichCurveInterpMode::RCIM_Constant;
+						else if (Interp == TEXT("cubic"))
+							InterpMode = ERichCurveInterpMode::RCIM_Cubic;
+
+						for (int32 Axis = 0; Axis < 3; ++Axis)
+						{
+							double Val = (Axis == 0) ? X : (Axis == 1) ? Y : Z;
+							FKeyHandle Handle = CurveVector->FloatCurves[Axis].AddKey(
+								static_cast<float>(Time), static_cast<float>(Val));
+							CurveVector->FloatCurves[Axis].SetKeyInterpMode(Handle, InterpMode);
+						}
+
+						MaxKeyTime = FMath::Max(MaxKeyTime, Time);
+					}
+				}
+
+				TimelineTemplate->VectorTracks.Add(VectorTrack);
+				TimelineTemplate->AddDisplayTrack(
+					FTTTrackId(FTTTrackBase::TT_VectorInterp,
+						TimelineTemplate->VectorTracks.Num() - 1));
+			}
+		}
+
+		// --- Add event tracks ---
+		const TArray<TSharedPtr<FJsonValue>>* EventTracksArray = nullptr;
+		if (Params->TryGetArrayField(TEXT("event_tracks"), EventTracksArray))
+		{
+			for (const auto& TrackVal : *EventTracksArray)
+			{
+				const TSharedPtr<FJsonObject>& TrackObj = TrackVal->AsObject();
+				if (!TrackObj) continue;
+
+				FString TrackName;
+				TrackObj->TryGetStringField(TEXT("track_name"), TrackName);
+
+				FTTEventTrack EventTrack;
+				EventTrack.SetTrackName(FName(*TrackName), TimelineTemplate);
+
+				FName CurveName = *FString::Printf(TEXT("%s_%s_EventCurve"),
+					*TimelineName, *TrackName);
+				UCurveFloat* EventCurve = NewObject<UCurveFloat>(
+					Blueprint->GeneratedClass, CurveName);
+				EventTrack.CurveKeys = EventCurve;
+
+				const TArray<TSharedPtr<FJsonValue>>* KeysArray = nullptr;
+				if (TrackObj->TryGetArrayField(TEXT("keys"), KeysArray))
+				{
+					for (const auto& KeyVal : *KeysArray)
+					{
+						const TSharedPtr<FJsonObject>& KeyObj = KeyVal->AsObject();
+						if (!KeyObj) continue;
+
+						double Time = 0.0;
+						KeyObj->TryGetNumberField(TEXT("time"), Time);
+
+						// Event tracks use value 1.0 at each trigger time
+						EventCurve->FloatCurve.AddKey(
+							static_cast<float>(Time), 1.0f);
+
+						MaxKeyTime = FMath::Max(MaxKeyTime, Time);
+					}
+				}
+
+				TimelineTemplate->EventTracks.Add(EventTrack);
+				TimelineTemplate->AddDisplayTrack(
+					FTTTrackId(FTTTrackBase::TT_Event,
+						TimelineTemplate->EventTracks.Num() - 1));
+			}
+		}
+
+		// Set timeline length
+		double ExplicitLength = 0.0;
+		if (Params->TryGetNumberField(TEXT("length"), ExplicitLength))
+		{
+			TimelineTemplate->TimelineLength = static_cast<float>(ExplicitLength);
+		}
+		else
+		{
+			// Auto-derive from latest keyframe
+			TimelineTemplate->TimelineLength = static_cast<float>(MaxKeyTime);
+		}
+
+		NewNode = TimelineNode;
+		NodeDescription = FString::Printf(TEXT("Timeline: %s"), *TimelineName);
 	}
 	else
 	{
