@@ -73,6 +73,27 @@ private:
 	// Property operations
 	FToolResult Operation_SetEmitterProperty(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
 
+	// Module operations
+	FToolResult Operation_ListModules(const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_AddModule(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_RemoveModule(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+
+	// Module input operations
+	FToolResult Operation_GetModuleInputs(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_SetModuleInput(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+
+	// System creation (session-less)
+	FToolResult Operation_Create(const TSharedPtr<FJsonObject>& Params);
+
+	// System properties & parameters
+	FToolResult Operation_SetSystemProperty(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_AddParameter(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_RemoveParameter(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_SetParameterValue(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+
+	// Compile
+	FToolResult Operation_Compile(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+
 	// Build operations
 	FToolResult Operation_Save(const FString& SessionId, FNiagaraEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
 

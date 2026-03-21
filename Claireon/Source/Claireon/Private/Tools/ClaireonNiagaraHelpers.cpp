@@ -12,6 +12,78 @@
 #include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraLightRendererProperties.h"
 #include "NiagaraTypes.h"
+#include "NiagaraGraph.h"
+#include "NiagaraNode.h"
+#include "NiagaraNodeOutput.h"
+#include "NiagaraNodeFunctionCall.h"
+#include "NiagaraScriptSource.h"
+#include "NiagaraScript.h"
+#include "NiagaraParameterMapHistory.h"
+#include "EdGraphSchema_Niagara.h"
+#include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+
+// ============================================================================
+// File-local helpers for graph traversal (replacing non-exported engine functions)
+// ============================================================================
+
+/** Find the ParameterMap input pin on a Niagara node by checking pin types. */
+static UEdGraphPin* FindParameterMapInputPin(UNiagaraNode& Node)
+{
+	FPinCollectorArray InputPins;
+	Node.GetInputPins(InputPins);
+	for (UEdGraphPin* Pin : InputPins)
+	{
+		FNiagaraTypeDefinition PinType = UEdGraphSchema_Niagara::PinToTypeDefinition(Pin);
+		if (PinType == FNiagaraTypeDefinition::GetParameterMapDef())
+		{
+			return Pin;
+		}
+	}
+	return nullptr;
+}
+
+/** Find the ParameterMap output pin on a Niagara node by checking pin types. */
+static UEdGraphPin* FindParameterMapOutputPin(UNiagaraNode& Node)
+{
+	FPinCollectorArray OutputPins;
+	Node.GetOutputPins(OutputPins);
+	for (UEdGraphPin* Pin : OutputPins)
+	{
+		FNiagaraTypeDefinition PinType = UEdGraphSchema_Niagara::PinToTypeDefinition(Pin);
+		if (PinType == FNiagaraTypeDefinition::GetParameterMapDef())
+		{
+			return Pin;
+		}
+	}
+	return nullptr;
+}
+
+/**
+ * Local reimplementation of FNiagaraStackGraphUtilities::GetStackFunctionInputOverridePin
+ * which is not exported from NiagaraEditor. Finds an existing override pin for a module input.
+ */
+static UEdGraphPin* FindStackFunctionInputOverridePin(UNiagaraNodeFunctionCall& StackFunctionCall, FNiagaraParameterHandle AliasedInputParameterHandle)
+{
+	// Find the ParameterMapSet node connected to the function call's parameter map input
+	UEdGraphPin* FuncInputPin = FindParameterMapInputPin(StackFunctionCall);
+	if (FuncInputPin && FuncInputPin->LinkedTo.Num() == 1)
+	{
+		UEdGraphNode* OverrideNode = FuncInputPin->LinkedTo[0]->GetOwningNode();
+		if (OverrideNode)
+		{
+			// Search the override node's input pins for one matching the aliased handle name
+			for (UEdGraphPin* Pin : OverrideNode->Pins)
+			{
+				if (Pin->Direction == EGPD_Input && Pin->PinName == AliasedInputParameterHandle.GetParameterHandleString())
+				{
+					return Pin;
+				}
+			}
+		}
+	}
+	return nullptr;
+}
 
 // ============================================================================
 // Asset Loading
@@ -160,7 +232,7 @@ FString ClaireonNiagaraHelpers::FormatRendererProperties(const UNiagaraRendererP
 	return Output;
 }
 
-FString ClaireonNiagaraHelpers::FormatEmitterStructure(const FNiagaraEmitterHandle& EmitterHandle, int32 EmitterIndex, bool bFullDetail)
+FString ClaireonNiagaraHelpers::FormatEmitterStructure(const UNiagaraSystem* System, const FNiagaraEmitterHandle& EmitterHandle, int32 EmitterIndex, bool bFullDetail)
 {
 	FString Output;
 
@@ -180,6 +252,45 @@ FString ClaireonNiagaraHelpers::FormatEmitterStructure(const FNiagaraEmitterHand
 
 	// Local space
 	Output += FString::Printf(TEXT("  Local Space: %s\n"), EmitterData->bLocalSpace ? TEXT("true") : TEXT("false"));
+
+	// Module stacks (Stage 009)
+	if (System)
+	{
+		Output += TEXT("  Stacks:\n");
+
+		static const TPair<FString, ENiagaraScriptUsage> StackDefs[] = {
+			{ TEXT("EmitterSpawn"),   ENiagaraScriptUsage::EmitterSpawnScript },
+			{ TEXT("EmitterUpdate"),  ENiagaraScriptUsage::EmitterUpdateScript },
+			{ TEXT("ParticleSpawn"), ENiagaraScriptUsage::ParticleSpawnScript },
+			{ TEXT("ParticleUpdate"), ENiagaraScriptUsage::ParticleUpdateScript },
+		};
+
+		for (const auto& StackDef : StackDefs)
+		{
+			Output += FString::Printf(TEXT("    %s:\n"), *StackDef.Key);
+
+			TArray<UNiagaraNodeFunctionCall*> ModuleNodes;
+			FString StackError;
+			if (GetOrderedModuleNodes(const_cast<UNiagaraSystem*>(System), EmitterIndex, StackDef.Value, ModuleNodes, StackError))
+			{
+				if (ModuleNodes.Num() == 0)
+				{
+					Output += TEXT("      (empty)\n");
+				}
+				else
+				{
+					for (int32 ModIdx = 0; ModIdx < ModuleNodes.Num(); ++ModIdx)
+					{
+						Output += FString::Printf(TEXT("      [%d] %s\n"), ModIdx, *FormatModuleInfo(ModuleNodes[ModIdx], true));
+					}
+				}
+			}
+			else
+			{
+				Output += TEXT("      (unavailable)\n");
+			}
+		}
+	}
 
 	// Renderers
 	const TArray<UNiagaraRendererProperties*>& Renderers = EmitterData->GetRenderers();
@@ -304,7 +415,7 @@ FString ClaireonNiagaraHelpers::FormatNiagaraSystemStructure(const UNiagaraSyste
 	// Per-emitter structure
 	for (int32 EmitterIdx = 0; EmitterIdx < EmitterHandles.Num(); ++EmitterIdx)
 	{
-		Output += FormatEmitterStructure(EmitterHandles[EmitterIdx], EmitterIdx, bFullDetail);
+		Output += FormatEmitterStructure(System, EmitterHandles[EmitterIdx], EmitterIdx, bFullDetail);
 	}
 
 	// User parameters
@@ -394,4 +505,284 @@ bool ClaireonNiagaraHelpers::SetObjectProperty(UObject* Object, const FString& P
 	}
 
 	return true;
+}
+
+// ============================================================================
+// Stack Resolution + Graph Traversal (Stage 001)
+// ============================================================================
+
+bool ClaireonNiagaraHelpers::ResolveStackName(const FString& StackName, ENiagaraScriptUsage& OutUsage, FString& OutError)
+{
+	if (StackName.Equals(TEXT("EmitterSpawn"), ESearchCase::IgnoreCase))
+	{
+		OutUsage = ENiagaraScriptUsage::EmitterSpawnScript;
+		return true;
+	}
+	if (StackName.Equals(TEXT("EmitterUpdate"), ESearchCase::IgnoreCase))
+	{
+		OutUsage = ENiagaraScriptUsage::EmitterUpdateScript;
+		return true;
+	}
+	if (StackName.Equals(TEXT("ParticleSpawn"), ESearchCase::IgnoreCase))
+	{
+		OutUsage = ENiagaraScriptUsage::ParticleSpawnScript;
+		return true;
+	}
+	if (StackName.Equals(TEXT("ParticleUpdate"), ESearchCase::IgnoreCase))
+	{
+		OutUsage = ENiagaraScriptUsage::ParticleUpdateScript;
+		return true;
+	}
+	if (StackName.Equals(TEXT("ParticleEvent"), ESearchCase::IgnoreCase))
+	{
+		OutUsage = ENiagaraScriptUsage::ParticleEventScript;
+		return true;
+	}
+
+	OutError = TEXT("Invalid stack name. Valid: EmitterSpawn, EmitterUpdate, ParticleSpawn, ParticleUpdate, ParticleEvent");
+	return false;
+}
+
+UNiagaraNodeOutput* ClaireonNiagaraHelpers::GetStackOutputNode(UNiagaraSystem* System, int32 EmitterIndex, ENiagaraScriptUsage Usage, FString& OutError)
+{
+	if (!System)
+	{
+		OutError = TEXT("System is null");
+		return nullptr;
+	}
+
+	const TArray<FNiagaraEmitterHandle>& EmitterHandles = System->GetEmitterHandles();
+	if (EmitterIndex < 0 || EmitterIndex >= EmitterHandles.Num())
+	{
+		OutError = FString::Printf(TEXT("Emitter index %d out of range (system has %d emitters)"), EmitterIndex, EmitterHandles.Num());
+		return nullptr;
+	}
+
+	const FNiagaraEmitterHandle& Handle = EmitterHandles[EmitterIndex];
+	FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData();
+	if (!EmitterData)
+	{
+		OutError = FString::Printf(TEXT("Emitter %d ('%s') has no emitter data"), EmitterIndex, *Handle.GetName().ToString());
+		return nullptr;
+	}
+
+	UNiagaraScriptSource* ScriptSource = Cast<UNiagaraScriptSource>(EmitterData->GraphSource);
+	if (!ScriptSource)
+	{
+		OutError = FString::Printf(TEXT("Emitter %d ('%s') has no script source (GraphSource is null or not UNiagaraScriptSource)"), EmitterIndex, *Handle.GetName().ToString());
+		return nullptr;
+	}
+
+	UNiagaraGraph* Graph = ScriptSource->NodeGraph;
+	if (!Graph)
+	{
+		OutError = FString::Printf(TEXT("Emitter %d ('%s') script source has no NodeGraph"), EmitterIndex, *Handle.GetName().ToString());
+		return nullptr;
+	}
+
+	UNiagaraNodeOutput* OutputNode = Graph->FindEquivalentOutputNode(Usage, FGuid());
+	if (!OutputNode)
+	{
+		OutError = FString::Printf(TEXT("Emitter %d ('%s') has no output node for the specified stack usage"), EmitterIndex, *Handle.GetName().ToString());
+		return nullptr;
+	}
+
+	return OutputNode;
+}
+
+bool ClaireonNiagaraHelpers::GetOrderedModuleNodes(UNiagaraSystem* System, int32 EmitterIndex, ENiagaraScriptUsage Usage, TArray<UNiagaraNodeFunctionCall*>& OutModuleNodes, FString& OutError)
+{
+	UNiagaraNodeOutput* OutputNode = GetStackOutputNode(System, EmitterIndex, Usage, OutError);
+	if (!OutputNode)
+	{
+		return false;
+	}
+
+	// Walk backward from the output node along ParameterMap pin connections,
+	// collecting UNiagaraNodeFunctionCall nodes in execution order.
+	// This reimplements FNiagaraStackGraphUtilities::GetOrderedModuleNodes
+	// which is not exported from NiagaraEditor.
+	OutModuleNodes.Reset();
+	UNiagaraNode* PreviousNode = OutputNode;
+	while (PreviousNode)
+	{
+		UEdGraphPin* InputPin = FindParameterMapInputPin(*PreviousNode);
+		if (InputPin && InputPin->LinkedTo.Num() == 1)
+		{
+			UNiagaraNode* CurrentNode = Cast<UNiagaraNode>(InputPin->LinkedTo[0]->GetOwningNode());
+			if (!CurrentNode)
+			{
+				break;
+			}
+
+			UNiagaraNodeFunctionCall* ModuleNode = Cast<UNiagaraNodeFunctionCall>(CurrentNode);
+			if (ModuleNode)
+			{
+				OutModuleNodes.Insert(ModuleNode, 0);
+			}
+			PreviousNode = CurrentNode;
+		}
+		else
+		{
+			PreviousNode = nullptr;
+		}
+	}
+	return true;
+}
+
+UNiagaraScript* ClaireonNiagaraHelpers::ResolveModuleScript(const FString& ModuleNameOrPath, FString& OutError)
+{
+	if (ModuleNameOrPath.IsEmpty())
+	{
+		OutError = TEXT("Module name or path is empty");
+		return nullptr;
+	}
+
+	// Full asset path: load directly
+	if (ModuleNameOrPath.StartsWith(TEXT("/")))
+	{
+		FSoftObjectPath SoftPath(ModuleNameOrPath);
+		UObject* LoadedObj = SoftPath.TryLoad();
+		if (!LoadedObj)
+		{
+			OutError = FString::Printf(TEXT("Failed to load module at path: %s"), *ModuleNameOrPath);
+			return nullptr;
+		}
+
+		UNiagaraScript* Script = Cast<UNiagaraScript>(LoadedObj);
+		if (!Script)
+		{
+			OutError = FString::Printf(TEXT("Asset at %s is not a UNiagaraScript (actual type: %s)"), *ModuleNameOrPath, *LoadedObj->GetClass()->GetName());
+			return nullptr;
+		}
+
+		return Script;
+	}
+
+	// Short name: search asset registry for UNiagaraScript assets matching the name
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+	FARFilter Filter;
+	Filter.ClassPaths.Add(UNiagaraScript::StaticClass()->GetClassPathName());
+	Filter.bRecursiveClasses = true;
+
+	TArray<FAssetData> AssetList;
+	AssetRegistry.GetAssets(Filter, AssetList);
+
+	// First pass: exact match (case-insensitive)
+	for (const FAssetData& Asset : AssetList)
+	{
+		if (Asset.AssetName.ToString().Equals(ModuleNameOrPath, ESearchCase::IgnoreCase))
+		{
+			UNiagaraScript* Script = Cast<UNiagaraScript>(Asset.GetAsset());
+			if (Script)
+			{
+				return Script;
+			}
+		}
+	}
+
+	// Second pass: contains match (case-insensitive)
+	UNiagaraScript* BestMatch = nullptr;
+	FString BestMatchName;
+	int32 BestMatchLen = MAX_int32;
+
+	for (const FAssetData& Asset : AssetList)
+	{
+		const FString AssetName = Asset.AssetName.ToString();
+		if (AssetName.Contains(ModuleNameOrPath, ESearchCase::IgnoreCase))
+		{
+			// Prefer shorter names (more specific matches)
+			if (AssetName.Len() < BestMatchLen)
+			{
+				UNiagaraScript* Script = Cast<UNiagaraScript>(Asset.GetAsset());
+				if (Script)
+				{
+					BestMatch = Script;
+					BestMatchName = AssetName;
+					BestMatchLen = AssetName.Len();
+				}
+			}
+		}
+	}
+
+	if (BestMatch)
+	{
+		return BestMatch;
+	}
+
+	OutError = FString::Printf(TEXT("Could not find a Niagara module matching '%s'. Use list_modules to discover available modules, or provide a full asset path."), *ModuleNameOrPath);
+	return nullptr;
+}
+
+FString ClaireonNiagaraHelpers::FormatModuleInfo(UNiagaraNodeFunctionCall* ModuleNode, bool bIncludeInputs)
+{
+	if (!ModuleNode)
+	{
+		return TEXT("(null module node)");
+	}
+
+	FString Output = ModuleNode->GetFunctionName();
+
+	if (bIncludeInputs)
+	{
+		TArray<FNiagaraVariable> InputVars;
+		FCompileConstantResolver ConstantResolver;
+		FNiagaraStackGraphUtilities::GetStackFunctionInputs(*ModuleNode, InputVars, ConstantResolver, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
+
+		if (InputVars.Num() > 0)
+		{
+			Output += TEXT(" (");
+			const int32 MaxInputs = FMath::Min(InputVars.Num(), 3);
+			for (int32 i = 0; i < MaxInputs; ++i)
+			{
+				if (i > 0)
+				{
+					Output += TEXT(", ");
+				}
+
+				const FNiagaraVariable& Var = InputVars[i];
+				FString ValueStr;
+
+				if (Var.IsDataAllocated())
+				{
+					const uint8* Data = Var.GetData();
+					if (Data)
+					{
+						if (Var.GetType() == FNiagaraTypeDefinition::GetFloatDef() && Var.GetSizeInBytes() >= sizeof(float))
+						{
+							ValueStr = FString::Printf(TEXT("%.4f"), *reinterpret_cast<const float*>(Data));
+						}
+						else if (Var.GetType() == FNiagaraTypeDefinition::GetIntDef() && Var.GetSizeInBytes() >= sizeof(int32))
+						{
+							ValueStr = FString::Printf(TEXT("%d"), *reinterpret_cast<const int32*>(Data));
+						}
+						else if (Var.GetType() == FNiagaraTypeDefinition::GetBoolDef() && Var.GetSizeInBytes() >= sizeof(FNiagaraBool))
+						{
+							const FNiagaraBool BoolVal = *reinterpret_cast<const FNiagaraBool*>(Data);
+							ValueStr = BoolVal.GetValue() ? TEXT("true") : TEXT("false");
+						}
+					}
+				}
+
+				if (ValueStr.IsEmpty())
+				{
+					Output += FString::Printf(TEXT("%s:%s"), *Var.GetName().ToString(), *Var.GetType().GetName());
+				}
+				else
+				{
+					Output += FString::Printf(TEXT("%s=%s"), *Var.GetName().ToString(), *ValueStr);
+				}
+			}
+
+			if (InputVars.Num() > MaxInputs)
+			{
+				Output += FString::Printf(TEXT(", +%d more"), InputVars.Num() - MaxInputs);
+			}
+
+			Output += TEXT(")");
+		}
+	}
+
+	return Output;
 }

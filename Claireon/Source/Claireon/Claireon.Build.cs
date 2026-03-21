@@ -86,6 +86,7 @@ public class Claireon : ModuleRules
 			// Niagara tools dependencies
 			"Niagara",           // UNiagaraSystem, UNiagaraEmitter, UNiagaraRendererProperties
 			"NiagaraCore",       // FNiagaraTypeDefinition, core Niagara type system
+			"NiagaraEditor",     // FNiagaraStackGraphUtilities, UNiagaraGraph, INiagaraEditorModule
 
 			// PCG Graph tools dependencies
 			"PCG",               // UPCGGraph, UPCGNode, UPCGPin, UPCGEdge, UPCGSettings

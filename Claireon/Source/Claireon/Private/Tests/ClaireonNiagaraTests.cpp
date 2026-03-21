@@ -424,5 +424,463 @@ UNTEST_UNIT_OPTS(Claireon, Niagara, EditUnknownOperation, UNTEST_TIMEOUTMS(15000
 	co_return;
 }
 
+// ============================================================================
+// editor.niagara.edit — list_modules (no session required)
+// ============================================================================
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, ListModules_ReturnsResults, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+
+	TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+	Args->SetStringField(TEXT("operation"), TEXT("list_modules"));
+	TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+	Args->SetObjectField(TEXT("params"), Params);
+
+	auto Result = Tool.Execute(Args);
+	FString Output = Result.GetContentAsString();
+	UNTEST_EXPECT_TRUE(Output.Contains(TEXT("=== Available Modules")));
+	// Should return at least one module in any Niagara-enabled project
+	UNTEST_EXPECT_FALSE(Output.Contains(TEXT("(no modules found")));
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, ListModules_QuerySpawn, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+
+	TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+	Args->SetStringField(TEXT("operation"), TEXT("list_modules"));
+	TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+	Params->SetStringField(TEXT("query"), TEXT("spawn"));
+	Args->SetObjectField(TEXT("params"), Params);
+
+	auto Result = Tool.Execute(Args);
+	FString Output = Result.GetContentAsString();
+	UNTEST_EXPECT_TRUE(Output.Contains(TEXT("Spawn")));
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, ListModules_InvalidStack, UNTEST_TIMEOUTMS(10000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+
+	TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+	Args->SetStringField(TEXT("operation"), TEXT("list_modules"));
+	TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+	Params->SetStringField(TEXT("stack"), TEXT("InvalidStack"));
+	Args->SetObjectField(TEXT("params"), Params);
+
+	auto Result = Tool.Execute(Args);
+	UNTEST_ASSERT_TRUE(Result.bIsError);
+	FString Output = Result.GetContentAsString();
+	UNTEST_EXPECT_TRUE(Output.Contains(TEXT("resolve")) || Output.Contains(TEXT("Unknown")) || Output.Contains(TEXT("Invalid")));
+	co_return;
+}
+
+// ============================================================================
+// editor.niagara.edit — Module operations (session required)
+// ============================================================================
+
+// Helper: Opens a session, extracts the session ID, and returns it via OutSessionId.
+// Returns false if the session could not be opened.
+static bool OpenTestSession(ClaireonTool_NiagaraEdit& Tool, FString& OutSessionId)
+{
+	TSharedPtr<FJsonObject> OpenArgs = MakeShared<FJsonObject>();
+	OpenArgs->SetStringField(TEXT("operation"), TEXT("open"));
+	TSharedPtr<FJsonObject> OpenParams = MakeShared<FJsonObject>();
+	OpenParams->SetStringField(TEXT("asset_path"), TestNiagaraSystemPath);
+	OpenArgs->SetObjectField(TEXT("params"), OpenParams);
+
+	auto OpenResult = Tool.Execute(OpenArgs);
+	if (OpenResult.bIsError)
+	{
+		return false;
+	}
+
+	FString OpenOutput = OpenResult.GetContentAsString();
+	int32 SessionStart = OpenOutput.Find(TEXT("Session ID: "));
+	if (SessionStart == INDEX_NONE)
+	{
+		return false;
+	}
+	SessionStart += FString(TEXT("Session ID: ")).Len();
+	int32 SessionEnd = OpenOutput.Find(TEXT("\n"), ESearchCase::IgnoreCase, ESearchDir::FromStart, SessionStart);
+	if (SessionEnd == INDEX_NONE)
+	{
+		return false;
+	}
+	OutSessionId = OpenOutput.Mid(SessionStart, SessionEnd - SessionStart).TrimStartAndEnd();
+	return !OutSessionId.IsEmpty();
+}
+
+static void CloseTestSession(ClaireonTool_NiagaraEdit& Tool, const FString& SessionId)
+{
+	TSharedPtr<FJsonObject> CloseArgs = MakeShared<FJsonObject>();
+	CloseArgs->SetStringField(TEXT("operation"), TEXT("close"));
+	CloseArgs->SetStringField(TEXT("session_id"), SessionId);
+	CloseArgs->SetObjectField(TEXT("params"), MakeShared<FJsonObject>());
+	Tool.Execute(CloseArgs);
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, AddModule_ByShortName, UNTEST_TIMEOUTMS(30000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	// Add an emitter first so we have an emitter to target
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_emitter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("emitter_name"), TEXT("TestEmitter_AddModule"));
+		Args->SetObjectField(TEXT("params"), Params);
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("add_emitter")) || Output.Contains(TEXT("TestEmitter_AddModule")));
+	}
+
+	// Find the emitter index (it's the last one added)
+	// Use status to get the current state
+	{
+		TSharedPtr<FJsonObject> StatusArgs = MakeShared<FJsonObject>();
+		StatusArgs->SetStringField(TEXT("operation"), TEXT("status"));
+		StatusArgs->SetStringField(TEXT("session_id"), SessionId);
+		StatusArgs->SetObjectField(TEXT("params"), MakeShared<FJsonObject>());
+		auto StatusResult = Tool.Execute(StatusArgs);
+		FString StatusOutput = StatusResult.GetContentAsString();
+		UNTEST_EXPECT_TRUE(StatusOutput.Contains(TEXT("TestEmitter_AddModule")));
+	}
+
+	// Add a module by short name to the new emitter's Spawn stack
+	// We use the last emitter index — query system for handle count
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_module"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		// Use a high emitter_index; the new emitter is the last one
+		// We don't know the exact index, but we can inspect status output
+		// For robustness, use the system's emitter count from status
+		// For simplicity, we'll use a known approach: the test asset has emitters,
+		// and our new one is appended at the end. We use emitter_index from status.
+		FString Error;
+		UNiagaraSystem* System = ClaireonNiagaraHelpers::LoadNiagaraSystemAsset(TestNiagaraSystemPath, Error);
+		int32 EmitterIdx = System ? System->GetEmitterHandles().Num() - 1 : 0;
+		Params->SetNumberField(TEXT("emitter_index"), EmitterIdx);
+		Params->SetStringField(TEXT("stack"), TEXT("Spawn"));
+		Params->SetStringField(TEXT("module"), TEXT("Spawn Rate"));
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("add_module")) || Output.Contains(TEXT("Spawn")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, GetModuleInputs_Success, UNTEST_TIMEOUTMS(30000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	// Add emitter and module
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_emitter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("emitter_name"), TEXT("TestEmitter_Inputs"));
+		Args->SetObjectField(TEXT("params"), Params);
+		Tool.Execute(Args);
+	}
+
+	FString Error;
+	UNiagaraSystem* System = ClaireonNiagaraHelpers::LoadNiagaraSystemAsset(TestNiagaraSystemPath, Error);
+	int32 EmitterIdx = System ? System->GetEmitterHandles().Num() - 1 : 0;
+
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_module"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetNumberField(TEXT("emitter_index"), EmitterIdx);
+		Params->SetStringField(TEXT("stack"), TEXT("Spawn"));
+		Params->SetStringField(TEXT("module"), TEXT("Spawn Rate"));
+		Args->SetObjectField(TEXT("params"), Params);
+		Tool.Execute(Args);
+	}
+
+	// Get module inputs for the module we just added (index 0 in Spawn stack)
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("get_module_inputs"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetNumberField(TEXT("emitter_index"), EmitterIdx);
+		Params->SetStringField(TEXT("stack"), TEXT("Spawn"));
+		Params->SetNumberField(TEXT("module_index"), 0);
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("=== Module Inputs")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, RemoveModule_Success, UNTEST_TIMEOUTMS(30000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	// Add emitter
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_emitter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("emitter_name"), TEXT("TestEmitter_Remove"));
+		Args->SetObjectField(TEXT("params"), Params);
+		Tool.Execute(Args);
+	}
+
+	FString Error;
+	UNiagaraSystem* System = ClaireonNiagaraHelpers::LoadNiagaraSystemAsset(TestNiagaraSystemPath, Error);
+	int32 EmitterIdx = System ? System->GetEmitterHandles().Num() - 1 : 0;
+
+	// Add module
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_module"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetNumberField(TEXT("emitter_index"), EmitterIdx);
+		Params->SetStringField(TEXT("stack"), TEXT("Spawn"));
+		Params->SetStringField(TEXT("module"), TEXT("Spawn Rate"));
+		Args->SetObjectField(TEXT("params"), Params);
+		Tool.Execute(Args);
+	}
+
+	// Remove the module we just added
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("remove_module"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetNumberField(TEXT("emitter_index"), EmitterIdx);
+		Params->SetStringField(TEXT("stack"), TEXT("Spawn"));
+		Params->SetNumberField(TEXT("module_index"), 0);
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("remove_module")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, AddModule_InvalidStack, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	// Try adding a module with an invalid stack name
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_module"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetNumberField(TEXT("emitter_index"), 0);
+		Params->SetStringField(TEXT("stack"), TEXT("Bogus"));
+		Params->SetStringField(TEXT("module"), TEXT("Spawn Rate"));
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		UNTEST_ASSERT_TRUE(Result.bIsError);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("resolve")) || Output.Contains(TEXT("Unknown")) || Output.Contains(TEXT("Invalid")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+// ============================================================================
+// editor.niagara.edit — System property & parameter operations
+// ============================================================================
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, SetSystemProperty_Success, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("set_system_property"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("property_name"), TEXT("bFixedBounds"));
+		Params->SetStringField(TEXT("value"), TEXT("true"));
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("set_system_property")) || Output.Contains(TEXT("bFixedBounds")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, AddParameter_Float, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_parameter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("name"), TEXT("TestFloat"));
+		Params->SetStringField(TEXT("type"), TEXT("Float"));
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("add_parameter")) || Output.Contains(TEXT("TestFloat")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, RemoveParameter_Success, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	// Add a parameter first
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_parameter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("name"), TEXT("TestParamToRemove"));
+		Params->SetStringField(TEXT("type"), TEXT("Float"));
+		Args->SetObjectField(TEXT("params"), Params);
+		Tool.Execute(Args);
+	}
+
+	// Remove it
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("remove_parameter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("name"), TEXT("TestParamToRemove"));
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("remove_parameter")) || Output.Contains(TEXT("TestParamToRemove")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, AddParameter_InvalidType, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("add_parameter"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		TSharedPtr<FJsonObject> Params = MakeShared<FJsonObject>();
+		Params->SetStringField(TEXT("name"), TEXT("BadParam"));
+		Params->SetStringField(TEXT("type"), TEXT("InvalidType"));
+		Args->SetObjectField(TEXT("params"), Params);
+
+		auto Result = Tool.Execute(Args);
+		UNTEST_ASSERT_TRUE(Result.bIsError);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("Unsupported")) || Output.Contains(TEXT("Invalid")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+// ============================================================================
+// editor.niagara.edit — Compile
+// ============================================================================
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, Compile_Success, UNTEST_TIMEOUTMS(30000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("compile"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		Args->SetObjectField(TEXT("params"), MakeShared<FJsonObject>());
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("Success")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
+// ============================================================================
+// editor.niagara.edit — Enhanced status
+// ============================================================================
+
+UNTEST_UNIT_OPTS(Claireon, NiagaraEdit, Status_IncludesStacks, UNTEST_TIMEOUTMS(15000))
+{
+	ClaireonTool_NiagaraEdit Tool;
+	FString SessionId;
+	UNTEST_ASSERT_TRUE(OpenTestSession(Tool, SessionId));
+
+	{
+		TSharedPtr<FJsonObject> Args = MakeShared<FJsonObject>();
+		Args->SetStringField(TEXT("operation"), TEXT("status"));
+		Args->SetStringField(TEXT("session_id"), SessionId);
+		Args->SetObjectField(TEXT("params"), MakeShared<FJsonObject>());
+
+		auto Result = Tool.Execute(Args);
+		FString Output = Result.GetContentAsString();
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("=== Session Status ===")));
+		// The test asset has emitters, so status should include stack information
+		UNTEST_EXPECT_TRUE(Output.Contains(TEXT("Stacks:")) || Output.Contains(TEXT("--- Emitter")));
+	}
+
+	CloseTestSession(Tool, SessionId);
+	co_return;
+}
+
 
 #endif // WITH_UNTESTED
