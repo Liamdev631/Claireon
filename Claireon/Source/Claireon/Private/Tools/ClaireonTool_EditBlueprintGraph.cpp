@@ -150,11 +150,23 @@ TSharedPtr<FJsonObject> ClaireonTool_EditBlueprintGraph::GetInputSchema() const
 
 	TSharedPtr<FJsonObject> Properties = MakeShared<FJsonObject>();
 
-	// blueprint_path - required
+	// operation - required string (e.g. "open", "add_node", "connect_pins", "save", "close")
+	TSharedPtr<FJsonObject> OpProp = MakeShared<FJsonObject>();
+	OpProp->SetStringField(TEXT("type"), TEXT("string"));
+	OpProp->SetStringField(TEXT("description"), TEXT("The operation to perform: open, create, add_node, remove_node, connect_pins, disconnect_pins, set_pin_value, move_node, add_pin, remove_pin, split_pin, recombine_pin, save, close, list_graphs, reconstruct_node, set_gameplay_tags, etc."));
+	Properties->SetObjectField(TEXT("operation"), OpProp);
+
+	// asset_path - required for open/create
 	TSharedPtr<FJsonObject> PathProp = MakeShared<FJsonObject>();
 	PathProp->SetStringField(TEXT("type"), TEXT("string"));
-	PathProp->SetStringField(TEXT("description"), TEXT("Unreal content path of the Blueprint to edit (e.g., /Game/Characters/BP_Enemy). Must start with /Game/."));
-	Properties->SetObjectField(TEXT("blueprint_path"), PathProp);
+	PathProp->SetStringField(TEXT("description"), TEXT("Unreal content path of the Blueprint to edit (e.g., /Game/Characters/BP_Enemy). Must start with /Game/. Required for 'open' and 'create' operations."));
+	Properties->SetObjectField(TEXT("asset_path"), PathProp);
+
+	// session_id - required for all operations except open/create
+	TSharedPtr<FJsonObject> SessionProp = MakeShared<FJsonObject>();
+	SessionProp->SetStringField(TEXT("type"), TEXT("string"));
+	SessionProp->SetStringField(TEXT("description"), TEXT("Session ID returned by the 'open' operation. Required for all operations except 'open' and 'create'."));
+	Properties->SetObjectField(TEXT("session_id"), SessionProp);
 
 	// graph_name - optional
 	TSharedPtr<FJsonObject> GraphProp = MakeShared<FJsonObject>();
@@ -162,20 +174,16 @@ TSharedPtr<FJsonObject> ClaireonTool_EditBlueprintGraph::GetInputSchema() const
 	GraphProp->SetStringField(TEXT("description"), TEXT("Name of the graph to edit (default: EventGraph). Use get_blueprint_properties to see available graphs."));
 	Properties->SetObjectField(TEXT("graph_name"), GraphProp);
 
-	// operations - required array
-	TSharedPtr<FJsonObject> OpsProp = MakeShared<FJsonObject>();
-	OpsProp->SetStringField(TEXT("type"), TEXT("array"));
-	OpsProp->SetStringField(TEXT("description"), TEXT("Array of graph edit operations to apply. Each operation must have a 'type' field."));
-	TSharedPtr<FJsonObject> ItemsObj = MakeShared<FJsonObject>();
-	ItemsObj->SetStringField(TEXT("type"), TEXT("object"));
-	OpsProp->SetObjectField(TEXT("items"), ItemsObj);
-	Properties->SetObjectField(TEXT("operations"), OpsProp);
+	// response_mode - optional
+	TSharedPtr<FJsonObject> RespProp = MakeShared<FJsonObject>();
+	RespProp->SetStringField(TEXT("type"), TEXT("string"));
+	RespProp->SetStringField(TEXT("description"), TEXT("Output detail level: 'changed' (default, pin-level diff), 'full' (complete graph state), 'status' (brief status line only)."));
+	Properties->SetObjectField(TEXT("response_mode"), RespProp);
 
 	Schema->SetObjectField(TEXT("properties"), Properties);
 
 	TArray<TSharedPtr<FJsonValue>> Required;
-	Required.Add(MakeShared<FJsonValueString>(TEXT("blueprint_path")));
-	Required.Add(MakeShared<FJsonValueString>(TEXT("operations")));
+	Required.Add(MakeShared<FJsonValueString>(TEXT("operation")));
 	Schema->SetArrayField(TEXT("required"), Required);
 
 	return Schema;
@@ -189,20 +197,9 @@ FToolResult ClaireonTool_EditBlueprintGraph::Execute(const TSharedPtr<FJsonObjec
 		return MakeErrorResult(TEXT("Missing 'operation' field"));
 	}
 
-	// Get params (optional)
-	TSharedPtr<FJsonObject> Params;
-	if (Arguments->HasField(TEXT("params")))
-	{
-		const TSharedPtr<FJsonObject>* ParamsPtr;
-		if (Arguments->TryGetObjectField(TEXT("params"), ParamsPtr))
-		{
-			Params = *ParamsPtr;
-		}
-	}
-	if (!Params.IsValid())
-	{
-		Params = MakeShared<FJsonObject>();
-	}
+	// All parameters are read from the top-level Arguments object (flat schema).
+	// Legacy callers that nested params in a "params" sub-object are no longer supported.
+	TSharedPtr<FJsonObject> Params = Arguments;
 
 	// Check suppress_output flag (deprecated — use response_mode instead)
 	bool bSuppressOutput = false;
