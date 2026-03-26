@@ -9,6 +9,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "BlueprintEditorLibrary.h"
 #include "Engine/Blueprint.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "UObject/SoftObjectPath.h"
 
@@ -26,7 +27,9 @@ FString ClaireonTool_BlueprintCompile::GetDescription() const
 {
 	return TEXT("Compile Blueprints by asset path or content folder. Each entry in paths is auto-detected: "
 		"a path that resolves to a Blueprint asset is compiled directly; a path that matches a content "
-		"folder compiles all Blueprints under it recursively. Defaults to /Game (everything) when paths is omitted.");
+		"folder compiles all Blueprints under it recursively. Defaults to /Game (everything) when paths is omitted. "
+		"Default max_count is 50 — if more blueprints are found, returns immediately with the count. "
+		"Pass max_count=0 for unlimited or raise the limit explicitly.");
 }
 
 TSharedPtr<FJsonObject> ClaireonTool_BlueprintCompile::GetInputSchema() const
@@ -64,6 +67,16 @@ TSharedPtr<FJsonObject> ClaireonTool_BlueprintCompile::GetInputSchema() const
 			 "RemoveUnusedNodes returns void; variable count is reported precisely. "
 			 "Default: false."));
 	Properties->SetObjectField(TEXT("remove_unused"), RemoveUnusedProp);
+
+	// max_count - optional, default 50
+	TSharedPtr<FJsonObject> MaxCountProp = MakeShared<FJsonObject>();
+	MaxCountProp->SetStringField(TEXT("type"), TEXT("integer"));
+	MaxCountProp->SetStringField(TEXT("description"),
+		TEXT("Maximum number of blueprints to compile in one call. "
+			 "If the resolved list exceeds this, returns immediately with the count "
+			 "so you can narrow paths or explicitly raise the limit. "
+			 "Default: 50. Set to 0 for unlimited."));
+	Properties->SetObjectField(TEXT("max_count"), MaxCountProp);
 
 	Schema->SetObjectField(TEXT("properties"), Properties);
 
@@ -265,7 +278,9 @@ IClaireonTool::FToolResult ClaireonTool_BlueprintCompile::Execute(const TSharedP
 
 	FString SourceDescription = FString::Join(InputPaths, TEXT(", "));
 
-	if (BlueprintPaths.Num() == 0)
+	int32 Total = BlueprintPaths.Num();
+
+	if (Total == 0)
 	{
 		TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
 		Data->SetNumberField(TEXT("total"), 0);
@@ -276,18 +291,52 @@ IClaireonTool::FToolResult ClaireonTool_BlueprintCompile::Execute(const TSharedP
 		return MakeSuccessResult(Data, FString::Printf(TEXT("No blueprints found for: %s"), *SourceDescription));
 	}
 
-	// Compile each Blueprint
+	// Parse max_count (default 50, 0 = unlimited)
+	int32 MaxCount = 50;
+	if (Arguments->HasField(TEXT("max_count")))
+	{
+		MaxCount = static_cast<int32>(Arguments->GetNumberField(TEXT("max_count")));
+	}
+
+	// Cap check: if the resolved list exceeds max_count, return immediately
+	if (MaxCount > 0 && Total > MaxCount)
+	{
+		TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+		Data->SetStringField(TEXT("status"), TEXT("capped"));
+		Data->SetStringField(TEXT("source"), SourceDescription);
+		Data->SetNumberField(TEXT("total_found"), Total);
+		Data->SetNumberField(TEXT("max_count"), MaxCount);
+		Data->SetNumberField(TEXT("compiled"), 0);
+		Data->SetStringField(TEXT("hint"),
+			FString::Printf(TEXT("Found %d blueprints. Pass max_count=%d to compile all, or use narrower paths."), Total, Total));
+		return MakeSuccessResult(Data,
+			FString::Printf(TEXT("Capped: %d blueprints found, max_count=%d. None compiled. Raise max_count or narrow paths."), Total, MaxCount));
+	}
+
+	// Compile each Blueprint, yielding after every compile to keep the editor alive
 	TArray<TSharedPtr<FJsonValue>> ResultsArray;
 	int32 NumSucceeded = 0;
 	int32 NumFailed = 0;
 
-	for (const FString& Path : BlueprintPaths)
+	for (int32 i = 0; i < Total; ++i)
 	{
-		TSharedPtr<FJsonObject> Result = CompileOneBlueprint(Path, bRemoveUnused, bFailOnWarnings, NumSucceeded, NumFailed);
+		TSharedPtr<FJsonObject> Result = CompileOneBlueprint(BlueprintPaths[i], bRemoveUnused, bFailOnWarnings, NumSucceeded, NumFailed);
 		ResultsArray.Add(MakeShared<FJsonValueObject>(Result));
+
+		// Tick the editor thread after every compile to keep the editor responsive
+		if (FSlateApplication::IsInitialized())
+		{
+			FSlateApplication::Get().PumpMessages();
+		}
+
+		// Progress log every 50 blueprints and at completion
+		if ((i + 1) % 50 == 0 || i + 1 == Total)
+		{
+			UE_LOG(LogClaireon, Display, TEXT("[compile_blueprints] %d / %d compiled (%d ok, %d failed)"),
+				i + 1, Total, NumSucceeded, NumFailed);
+		}
 	}
 
-	int32 Total = BlueprintPaths.Num();
 	TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
 	Data->SetStringField(TEXT("source"), SourceDescription);
 	Data->SetNumberField(TEXT("total"), Total);
