@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_GetBlueprintGraph.h"
-#include "ClaireonBlueprintHelpers.h"
 #include "ClaireonLog.h"
 #include "Engine/Blueprint.h"
 #include "EdGraph/EdGraph.h"
@@ -252,12 +251,16 @@ IClaireonTool::FToolResult ClaireonTool_GetBlueprintGraph::Execute(const TShared
 
 		if (!AnchorGuid.IsEmpty())
 		{
-			// BFS from anchor — parse GUID to handle both hyphenated and non-hyphenated formats
-			FGuid ParsedAnchorGuid;
-			FGuid::Parse(AnchorGuid, ParsedAnchorGuid);
-			UEdGraphNode* AnchorNode = ParsedAnchorGuid.IsValid()
-				? ClaireonBlueprintHelpers::FindNodeByGuid(Graph, ParsedAnchorGuid)
-				: nullptr;
+			// BFS from anchor
+			UEdGraphNode* AnchorNode = nullptr;
+			for (UEdGraphNode* Node : Graph->Nodes)
+			{
+				if (Node && Node->NodeGuid.ToString() == AnchorGuid)
+				{
+					AnchorNode = Node;
+					break;
+				}
+			}
 
 			if (AnchorNode)
 			{
@@ -521,12 +524,16 @@ FString ClaireonTool_GetBlueprintGraph::BuildGraphJsonSummary(const UEdGraph* Gr
 	// --- Anchor BFS path ---
 	if (!AnchorGuid.IsEmpty())
 	{
-		// Find the anchor node by GUID — parse to handle both hyphenated and non-hyphenated formats
-		FGuid ParsedAnchorGuid;
-		FGuid::Parse(AnchorGuid, ParsedAnchorGuid);
-		UEdGraphNode* AnchorNode = ParsedAnchorGuid.IsValid()
-			? ClaireonBlueprintHelpers::FindNodeByGuid(Graph, ParsedAnchorGuid)
-			: nullptr;
+		// Find the anchor node by GUID
+		UEdGraphNode* AnchorNode = nullptr;
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (Node && Node->NodeGuid.ToString() == AnchorGuid)
+			{
+				AnchorNode = Node;
+				break;
+			}
+		}
 
 		if (!AnchorNode)
 		{

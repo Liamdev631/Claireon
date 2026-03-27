@@ -726,20 +726,9 @@ FString ClaireonNiagaraHelpers::FormatModuleInfo(UNiagaraNodeFunctionCall* Modul
 
 	if (bIncludeInputs)
 	{
-		// Enumerate Module.* input pins using exported graph APIs (GetStackFunctionInputs is
-		// not exported from NiagaraEditor in UE 5.5 — no NIAGARAEDITOR_API on those overloads).
 		TArray<FNiagaraVariable> InputVars;
-		FPinCollectorArray InputPins;
-		ModuleNode->GetInputPins(InputPins);
-		for (UEdGraphPin* Pin : InputPins)
-		{
-			if (!Pin) continue;
-			const FString PinName = Pin->PinName.ToString();
-			if (!PinName.StartsWith(TEXT("Module."))) continue;
-			FNiagaraTypeDefinition PinType = UEdGraphSchema_Niagara::PinToTypeDefinition(Pin);
-			if (PinType.IsValid())
-				InputVars.Emplace(PinType, *PinName);
-		}
+		FCompileConstantResolver ConstantResolver;
+		FNiagaraStackGraphUtilities::GetStackFunctionInputs(*ModuleNode, InputVars, ConstantResolver, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
 
 		if (InputVars.Num() > 0)
 		{

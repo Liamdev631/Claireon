@@ -2,11 +2,6 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_ExecutePython.h"
-#include "Tools/ClaireonTool_MapOpen.h"
-#include "Tools/ClaireonTool_PIEStart.h"
-#include "Tools/ClaireonTool_PIEStop.h"
-#include "Tools/ClaireonTool_LiveCodingReload.h"
-#include "Tools/ClaireonTool_MapDuplicate.h"
 #include "ClaireonBridge.h"
 #include "ClaireonLog.h"
 #include "ClaireonPythonAuditLog.h"
@@ -22,6 +17,10 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
+#include "Tools/ClaireonTool_MapOpen.h"
+#include "Tools/ClaireonTool_PIEStart.h"
+#include "Tools/ClaireonTool_PIEStop.h"
+#include "Tools/ClaireonTool_LiveCodingReload.h"
 
 // CPython C API headers for timeout enforcement
 THIRD_PARTY_INCLUDES_START
@@ -372,7 +371,7 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 	const double StartTimeSeconds = FPlatformTime::Seconds();
 	const bool bPythonSuccess = IPythonScriptPlugin::Get()->ExecPythonCommandEx(PythonCommand);
 	const double DurationMs = (FPlatformTime::Seconds() - StartTimeSeconds) * 1000.0;
-	const bool bTimedOut = false; // Watchdog timer not yet implemented — timeout_seconds is advisory only
+	const bool bTimedOut = false; // TODO: re-add watchdog timer with proper GIL handling
 
 	// Step 7b: Dispatch any deferred world-transition actions.
 	// The barrier runs inside each deferred action's lambda (right before the
@@ -395,9 +394,6 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 				break;
 			case EClaireonDeferredActionType::LiveCodingReload:
 				ClaireonTool_LiveCodingReload::ExecuteDeferredLiveCodingReload(Action.Payload);
-				break;
-			case EClaireonDeferredActionType::DuplicateAndOpenMap:
-				ClaireonTool_MapDuplicate::ExecuteDeferredDuplicateAndOpenMap(Action.Payload);
 				break;
 			}
 		}
