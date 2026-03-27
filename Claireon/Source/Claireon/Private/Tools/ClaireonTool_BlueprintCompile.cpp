@@ -235,6 +235,11 @@ static void ResolvePath(const FString& Path, IAssetRegistry& AssetRegistry, TArr
 
 IClaireonTool::FToolResult ClaireonTool_BlueprintCompile::Execute(const TSharedPtr<FJsonObject>& Arguments)
 {
+	if (!Arguments.IsValid())
+	{
+		return MakeErrorResult(TEXT("Invalid arguments"));
+	}
+
 	// Parse options
 	bool bFailOnWarnings = false;
 	if (Arguments->HasField(TEXT("failOnWarnings")))

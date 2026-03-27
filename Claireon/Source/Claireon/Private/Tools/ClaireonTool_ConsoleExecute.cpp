@@ -39,6 +39,13 @@ TSharedPtr<FJsonObject> ClaireonTool_ConsoleExecute::GetInputSchema() const
 		TEXT("The console command to execute (e.g. 'stat fps', 'obj list')"));
 	Properties->SetObjectField(TEXT("command"), CommandProp);
 
+	// context - optional
+	TSharedPtr<FJsonObject> ContextProp = MakeShared<FJsonObject>();
+	ContextProp->SetStringField(TEXT("type"), TEXT("string"));
+	ContextProp->SetStringField(TEXT("description"),
+		TEXT("World context: 'auto' (default: PIE if running, else editor), 'pie' (PIE only), 'editor' (editor only)"));
+	Properties->SetObjectField(TEXT("context"), ContextProp);
+
 	Schema->SetObjectField(TEXT("properties"), Properties);
 
 	TArray<TSharedPtr<FJsonValue>> Required;
@@ -73,9 +80,30 @@ IClaireonTool::FToolResult ClaireonTool_ConsoleExecute::Execute(const TSharedPtr
 		}
 	};
 
+	// Determine world context: prefer PIE world, fall back to editor world
+	FString ContextMode;
+	Arguments->TryGetStringField(TEXT("context"), ContextMode);
+
+	UWorld* TargetWorld = nullptr;
+	if (ContextMode != TEXT("editor"))
+	{
+		// Try PIE world first (unless explicitly "editor")
+		for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
+		{
+			if (WorldContext.WorldType == EWorldType::PIE && WorldContext.World())
+			{
+				TargetWorld = WorldContext.World();
+				break;
+			}
+		}
+	}
+	if (!TargetWorld && ContextMode != TEXT("pie") && GEditor)
+	{
+		TargetWorld = GEditor->GetEditorWorldContext().World();
+	}
+
 	FStringOutputDevice OutputDevice;
-	GEngine->Exec(GEditor ? GEditor->GetEditorWorldContext().World() : nullptr,
-		*Command, OutputDevice);
+	GEngine->Exec(TargetWorld, *Command, OutputDevice);
 
 	const bool bSuccess = true; // Exec doesn't return failure in most cases
 	const FString Output = OutputDevice.Output;

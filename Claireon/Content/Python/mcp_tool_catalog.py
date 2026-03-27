@@ -81,6 +81,14 @@ _ABBREVIATIONS = {
     "set":         "write update modify",
     "load":        "open read import",
     "save":        "write export persist",
+    # Verb synonyms for discoverability (maps common actions to tool keywords)
+    "open":        "open map level world load launch",
+    "find":        "search discover lookup asset find_assets",
+    "create":      "create new add spawn place",
+    "delete":      "delete remove destroy",
+    "run":         "run execute start launch",
+    "stop":        "stop end close terminate kill",
+    "screenshot":  "screenshot capture image snap viewport",
 }
 
 # Build reverse map: canonical term -> set of abbreviations that expand to it

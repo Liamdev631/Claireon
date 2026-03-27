@@ -153,7 +153,7 @@ TSharedPtr<FJsonObject> ClaireonTool_EditBlueprintGraph::GetInputSchema() const
 	// operation - required string (e.g. "open", "add_node", "connect_pins", "save", "close")
 	TSharedPtr<FJsonObject> OpProp = MakeShared<FJsonObject>();
 	OpProp->SetStringField(TEXT("type"), TEXT("string"));
-	OpProp->SetStringField(TEXT("description"), TEXT("The operation to perform: open, create, add_node, remove_node, connect_pins, disconnect_pins, set_pin_value, move_node, add_pin, remove_pin, split_pin, recombine_pin, save, close, list_graphs, reconstruct_node, set_gameplay_tags, etc."));
+	OpProp->SetStringField(TEXT("description"), TEXT("The operation to perform: open, create, add_node (supports optional position: {x,y}), remove_node, connect_pins, disconnect_pins, set_pin_value, move_node (requires node_guid + position: {x,y}), add_pin, remove_pin, split_pin, recombine_pin, save, close, list_graphs, reconstruct_node, set_gameplay_tags, etc."));
 	Properties->SetObjectField(TEXT("operation"), OpProp);
 
 	// asset_path - required for open/create
@@ -471,6 +471,10 @@ FToolResult ClaireonTool_EditBlueprintGraph::Execute(const TSharedPtr<FJsonObjec
 		else if (Operation == TEXT("format"))
 		{
 			return Operation_Format(SessionId, Data, Params);
+		}
+		else if (Operation == TEXT("move_node"))
+		{
+			return CheckMutationAffectedNodes(Operation, Operation_MoveNode(SessionId, Data, Params));
 		}
 		else if (Operation == TEXT("close"))
 		{
@@ -4245,6 +4249,65 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_SetGameplayTags(const TSh
 		*FString::Join(ResultTags, TEXT(", ")));
 
 	return MakeSuccessResult(nullptr, Output);
+}
+
+// ============================================================================
+// Operation: move_node
+// ============================================================================
+
+FToolResult ClaireonTool_EditBlueprintGraph::Operation_MoveNode(const FString& SessionId, FBlueprintEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	UBlueprint* Blueprint = Data->Blueprint.Get();
+	UEdGraph* Graph = Data->Graph.Get();
+
+	if (!Blueprint || !Graph)
+	{
+		return MakeErrorResult(TEXT("Blueprint or Graph is no longer valid"));
+	}
+
+	// Get node_guid
+	FString NodeGuidStr;
+	if (!Params->TryGetStringField(TEXT("node_guid"), NodeGuidStr))
+	{
+		return MakeErrorResult(TEXT("Missing required field: node_guid"));
+	}
+
+	FGuid NodeGuid;
+	if (!FGuid::Parse(NodeGuidStr, NodeGuid))
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Invalid node_guid format: %s"), *NodeGuidStr));
+	}
+
+	// Get position
+	const TSharedPtr<FJsonObject>* PositionObj = nullptr;
+	if (!Params->TryGetObjectField(TEXT("position"), PositionObj))
+	{
+		return MakeErrorResult(TEXT("Missing required field: position (object with x, y)"));
+	}
+
+	double X = 0.0, Y = 0.0;
+	(*PositionObj)->TryGetNumberField(TEXT("x"), X);
+	(*PositionObj)->TryGetNumberField(TEXT("y"), Y);
+
+	// Find the node
+	UEdGraphNode* Node = FindNodeForOperation(Graph, NodeGuid, Data);
+	if (!Node)
+	{
+		FString AvailableNodes = ClaireonBlueprintHelpers::FormatAvailableNodes(Graph);
+		return MakeErrorResult(FString::Printf(TEXT("Node not found with GUID: %s in graph '%s'.\n%s"),
+			*NodeGuidStr, *Graph->GetName(), *AvailableNodes));
+	}
+
+	// Move the node
+	FScopedTransaction Transaction(LOCTEXT("MCPMoveNode", "MCP Move Node"));
+	Node->Modify();
+	Node->NodePosX = X;
+	Node->NodePosY = Y;
+	Graph->NotifyGraphChanged();
+
+	Data->LastOperationAffectedNodes.Add(Node->NodeGuid);
+
+	return BuildStateResponse(SessionId, Data);
 }
 
 #undef LOCTEXT_NAMESPACE

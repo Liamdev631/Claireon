@@ -8,6 +8,7 @@
 #include "Dom/JsonValue.h"
 #include "Internationalization/Regex.h"
 #include "Misc/FileHelper.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformOutputDevices.h"
 #include "Misc/OutputDeviceRedirector.h"
 #include "Misc/Paths.h"
@@ -69,9 +70,28 @@ IClaireonTool::FToolResult ClaireonTool_LogTail::Execute(const TSharedPtr<FJsonO
 		return MakeErrorResult(FString::Printf(TEXT("Log file not found: %s"), *CurrentLogPath));
 	}
 
-	// Read the file
+	// Read the file using shared-read access (FILEREAD_AllowWrite) so we can read
+	// while the editor process holds its write lock on the log file
 	TArray<FString> AllLines;
-	FFileHelper::LoadFileToStringArray(AllLines, *CurrentLogPath);
+	{
+		TUniquePtr<FArchive> Reader(IFileManager::Get().CreateFileReader(*CurrentLogPath, FILEREAD_AllowWrite));
+		if (Reader)
+		{
+			FString FileContents;
+			const int64 FileSize = Reader->TotalSize();
+			auto& RawArray = FileContents.GetCharArray();
+			// Read as UTF-8 then convert
+			TArray<uint8> RawBytes;
+			RawBytes.SetNumUninitialized(FileSize);
+			Reader->Serialize(RawBytes.GetData(), FileSize);
+			Reader->Close();
+
+			// Convert from UTF-8 (UE log files are UTF-8 with BOM)
+			FUTF8ToTCHAR Converter(reinterpret_cast<const ANSICHAR*>(RawBytes.GetData()), RawBytes.Num());
+			FileContents = FString(Converter.Length(), Converter.Get());
+			FileContents.ParseIntoArrayLines(AllLines, false);
+		}
+	}
 
 	// Apply optional regex filter
 	TArray<FString> FilteredLines;

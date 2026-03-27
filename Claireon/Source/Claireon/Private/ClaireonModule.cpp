@@ -55,6 +55,7 @@
 #include "Tools/ClaireonTool_AssetResave.h"
 #include "Tools/ClaireonTool_AssetCook.h"
 #include "Tools/ClaireonTool_LogTail.h"
+#include "Tools/ClaireonTool_LogSearch.h"
 #include "Tools/ClaireonTool_TestRun.h"
 #include "Tools/ClaireonTool_TestList.h"
 // State Tree MCP tools
@@ -124,6 +125,9 @@
 #include "Tools/ClaireonTool_PIEScreenshot.h"
 #include "Tools/ClaireonTool_PIETraceStart.h"
 #include "Tools/ClaireonTool_PIETraceStop.h"
+
+// Asset editor tool
+#include "Tools/ClaireonTool_OpenAssetEditor.h"
 
 // Session management MCP tools
 #include "Tools/ClaireonTool_ListSessions.h"
@@ -243,11 +247,13 @@ void FClaireonModule::StartServer()
 	Server->RegisterTool(MakeShared<ClaireonTool_AssetList>());
 	Server->RegisterTool(MakeShared<ClaireonTool_AssetValidate>());
 	Server->RegisterTool(MakeShared<ClaireonTool_AssetFixupRedirectors>());
+	Server->RegisterTool(MakeShared<ClaireonTool_OpenAssetEditor>());
 	Server->RegisterTool(MakeShared<ClaireonTool_BlueprintCompile>());
 	Server->RegisterTool(MakeShared<ClaireonTool_CommandletRun>());
 	Server->RegisterTool(MakeShared<ClaireonTool_AssetResave>());
 	Server->RegisterTool(MakeShared<ClaireonTool_AssetCook>());
 	Server->RegisterTool(MakeShared<ClaireonTool_LogTail>());
+	Server->RegisterTool(MakeShared<ClaireonTool_LogSearch>());
 	Server->RegisterTool(MakeShared<ClaireonTool_TestRun>());
 	Server->RegisterTool(MakeShared<ClaireonTool_TestList>());
 	// State Tree MCP tools

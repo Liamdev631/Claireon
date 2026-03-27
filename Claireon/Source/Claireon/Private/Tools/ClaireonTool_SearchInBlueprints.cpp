@@ -3,6 +3,7 @@
 
 #include "Tools/ClaireonTool_SearchInBlueprints.h"
 #include "ClaireonLog.h"
+#include "ClaireonSettings.h"
 #include "FindInBlueprintManager.h"
 #include "HAL/PlatformProcess.h"
 
@@ -62,6 +63,12 @@ TSharedPtr<FJsonObject> ClaireonTool_SearchInBlueprints::GetInputSchema() const
 	MaxProp->SetStringField(TEXT("type"), TEXT("integer"));
 	MaxProp->SetStringField(TEXT("description"), TEXT("Maximum number of matching blueprints to return (default: 50, max: 200)"));
 	Properties->SetObjectField(TEXT("max_results"), MaxProp);
+
+	// timeout - optional per-call override
+	TSharedPtr<FJsonObject> TimeoutProp = MakeShared<FJsonObject>();
+	TimeoutProp->SetStringField(TEXT("type"), TEXT("number"));
+	TimeoutProp->SetStringField(TEXT("description"), TEXT("Search timeout in seconds (default: from settings, typically 30). Increase if FiB index is still building."));
+	Properties->SetObjectField(TEXT("timeout"), TimeoutProp);
 
 	Schema->SetObjectField(TEXT("properties"), Properties);
 
@@ -124,20 +131,44 @@ IClaireonTool::FToolResult ClaireonTool_SearchInBlueprints::Execute(const TShare
 	// because Execute() may already be running inside a game-thread task graph
 	// task (e.g. when invoked via the REPL client's AsyncTask dispatch), and
 	// re-entrant task processing triggers a fatal recursion guard assertion.
-	constexpr double MaxWaitSeconds = 30.0;
-	const double StartTime = FPlatformTime::Seconds();
-	while (!StreamSearch->IsComplete())
+	double MaxWaitSeconds = GetDefault<UClaireonSettings>()->BlueprintSearchTimeoutSeconds;
+	// Per-call timeout override
+	double TimeoutOverride = 0.0;
+	if (Arguments->TryGetNumberField(TEXT("timeout"), TimeoutOverride) && TimeoutOverride > 0.0)
 	{
-		if (FPlatformTime::Seconds() - StartTime > MaxWaitSeconds)
+		MaxWaitSeconds = TimeoutOverride;
+	}
+
+	// Helper lambda: poll a stream search with timeout
+	auto WaitForSearch = [](TSharedPtr<FStreamSearch>& Search, double Timeout) -> bool
+	{
+		const double Start = FPlatformTime::Seconds();
+		while (!Search->IsComplete())
 		{
-			UE_LOG(LogClaireon, Warning, TEXT("[SearchInBlueprints] Search timed out after %.0fs for query: %s"),
-				MaxWaitSeconds, *Query);
+			if (FPlatformTime::Seconds() - Start > Timeout)
+			{
+				return false; // timed out
+			}
+			FPlatformProcess::Sleep(0.01f); // 10ms yield
+		}
+		return true; // completed
+	};
+
+	if (!WaitForSearch(StreamSearch, MaxWaitSeconds))
+	{
+		// Retry once — the FiB index may still be building after editor startup
+		UE_LOG(LogClaireon, Warning, TEXT("[SearchInBlueprints] Search timed out after %.0fs — retrying once for query: %s"),
+			MaxWaitSeconds, *Query);
+
+		FPlatformProcess::Sleep(2.0f);
+		StreamSearch = MakeShared<FStreamSearch>(Query, SearchOptions);
+
+		if (!WaitForSearch(StreamSearch, MaxWaitSeconds))
+		{
 			return MakeErrorResult(FString::Printf(
-				TEXT("Blueprint search timed out after %.0f seconds. The FiB index may still be building. Try again shortly."),
+				TEXT("Blueprint search timed out after retry (%.0fs x2). The FiB index may still be building. Try again later."),
 				MaxWaitSeconds));
 		}
-
-		FPlatformProcess::Sleep(0.01f); // 10ms yield
 	}
 
 	StreamSearch->GetFilteredItems(RawResults);

@@ -463,7 +463,24 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 				}
 				else
 				{
-					ErrorMsg = TEXT("Python execution failed with no error details.");
+					// Enhanced diagnostics for bridge-level failures (before user code ran)
+					FString DiagInfo;
+
+					// Check Python bridge availability
+					IPythonScriptPlugin* PythonPlugin = IPythonScriptPlugin::Get();
+					if (!PythonPlugin)
+					{
+						DiagInfo = TEXT("Bridge status: Python plugin not available.");
+					}
+					else
+					{
+						DiagInfo = TEXT("Bridge status: registered.");
+					}
+
+					ErrorMsg = FString::Printf(
+						TEXT("Python execution failed at bridge level (before user code executed). "
+							 "Possible causes: Python bridge not initialized, syntax error in script prefix, or module import failure. %s"),
+						*DiagInfo);
 				}
 			}
 			FinalResult.ErrorMessage = ErrorMsg;

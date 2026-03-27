@@ -150,6 +150,12 @@ IClaireonTool::FToolResult ClaireonTool_AssetSearch::Execute(const TSharedPtr<FJ
 		const FString PackagePath = AssetData.PackagePath.ToString();
 		const FString ObjectPath = AssetData.GetObjectPathString();
 
+		// Filter by search roots
+		if (!IsUnderSearchRoots(PackagePath, SearchRoots))
+		{
+			continue;
+		}
+
 		// Apply class filter (case-insensitive contains)
 		if (!ClassFilter.IsEmpty())
 		{

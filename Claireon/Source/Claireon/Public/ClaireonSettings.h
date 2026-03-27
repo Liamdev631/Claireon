@@ -145,6 +145,13 @@ public:
         meta=(DisplayName="Verbose Network Logging"))
     bool bVerboseNetworkLogging = false;
 
+    // --- Search ---
+
+    /** Timeout in seconds for Blueprint search (Find in Blueprints). Increase if FiB index is slow to build. */
+    UPROPERTY(Config, EditAnywhere, Category="Search",
+        meta=(DisplayName="Blueprint Search Timeout (seconds)", ClampMin=5.0, ClampMax=300.0))
+    float BlueprintSearchTimeoutSeconds = 30.0f;
+
     // --- PIE ---
 
     /** Net modes to hide from the pie_start tool's netMode parameter.

@@ -50,6 +50,13 @@ TSharedPtr<FJsonObject> ClaireonTool_PIEScreenshot::GetInputSchema() const
 		Properties->SetObjectField(TEXT("resolutionMultiplier"), Prop);
 	}
 
+	{
+		TSharedPtr<FJsonObject> Prop = MakeShared<FJsonObject>();
+		Prop->SetStringField(TEXT("type"), TEXT("boolean"));
+		Prop->SetStringField(TEXT("description"), TEXT("Include UMG/Slate UI overlays in the screenshot. Default: true"));
+		Properties->SetObjectField(TEXT("show_ui"), Prop);
+	}
+
 	Schema->SetObjectField(TEXT("properties"), Properties);
 	return Schema;
 }
@@ -82,6 +89,10 @@ IClaireonTool::FToolResult ClaireonTool_PIEScreenshot::Execute(const TSharedPtr<
 	double ResolutionMultiplier = 1.0;
 	Arguments->TryGetNumberField(TEXT("resolutionMultiplier"), ResolutionMultiplier);
 
+	// Show UI (UMG/Slate overlays) - default true
+	bool bShowUI = true;
+	Arguments->TryGetBoolField(TEXT("show_ui"), bShowUI);
+
 	// Ensure directory exists
 	FPlatformFileManager::Get().GetPlatformFile().CreateDirectoryTree(*Directory);
 
@@ -97,7 +108,7 @@ IClaireonTool::FToolResult ClaireonTool_PIEScreenshot::Execute(const TSharedPtr<
 	}
 	else
 	{
-		FScreenshotRequest::RequestScreenshot(FullPath + TEXT(".png"), false, false);
+		FScreenshotRequest::RequestScreenshot(FullPath + TEXT(".png"), false, bShowUI);
 	}
 
 	// Estimate file size (file may not exist yet as capture is async)

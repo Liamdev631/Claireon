@@ -133,6 +133,9 @@ private:
 	/** Recombine a previously split struct pin */
 	FToolResult Operation_RecombinePin(const FString& SessionId, FBlueprintEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
 
+	/** Move a node to a new position */
+	FToolResult Operation_MoveNode(const FString& SessionId, FBlueprintEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+
 	// ========================================================================
 	// Helpers
 	// ========================================================================
