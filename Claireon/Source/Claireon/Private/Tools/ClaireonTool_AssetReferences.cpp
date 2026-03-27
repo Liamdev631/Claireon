@@ -11,7 +11,7 @@
 
 FString ClaireonTool_AssetReferences::GetName() const
 {
-	return TEXT("get_asset_references");
+	return TEXT("claireon.asset_references");
 }
 
 FString ClaireonTool_AssetReferences::GetDescription() const

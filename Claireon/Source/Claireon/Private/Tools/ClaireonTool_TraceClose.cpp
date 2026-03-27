@@ -7,12 +7,7 @@
 
 FString ClaireonTool_TraceClose::GetName() const
 {
-	return TEXT("trace_close");
-}
-
-FString ClaireonTool_TraceClose::GetCategory() const
-{
-	return TEXT("trace");
+	return TEXT("claireon.trace_close");
 }
 
 FString ClaireonTool_TraceClose::GetDescription() const

@@ -12,12 +12,7 @@
 
 FString ClaireonTool_TraceGetScopeDetails::GetName() const
 {
-	return TEXT("trace_get_scope_details");
-}
-
-FString ClaireonTool_TraceGetScopeDetails::GetCategory() const
-{
-	return TEXT("trace");
+	return TEXT("claireon.trace_get_scope_details");
 }
 
 FString ClaireonTool_TraceGetScopeDetails::GetDescription() const

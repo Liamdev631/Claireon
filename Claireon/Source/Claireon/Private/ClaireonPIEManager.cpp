@@ -103,7 +103,7 @@ void FClaireonPIEManager::HandleBeginPIE(bool bIsSimulating)
 {
 	FScopeLock Lock(&CriticalSection);
 
-	// If a session is already active (e.g., pie_start MCP tool registered it), skip
+	// If a session is already active (e.g., claireon.pie_start_async MCP tool registered it), skip
 	if (ActiveSession.IsSet() && ActiveSession->bIsActive)
 	{
 		return;

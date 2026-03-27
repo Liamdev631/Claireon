@@ -10,12 +10,7 @@
 
 FString ClaireonTool_PCGGraphInspect::GetName() const
 {
-	return TEXT("inspect_pcg_graph");
-}
-
-FString ClaireonTool_PCGGraphInspect::GetCategory() const
-{
-	return TEXT("pcg");
+	return TEXT("claireon.pcg_inspect");
 }
 
 FString ClaireonTool_PCGGraphInspect::GetDescription() const

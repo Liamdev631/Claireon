@@ -9,7 +9,7 @@
 
 FString ClaireonTool_TraceGetThreads::GetName() const
 {
-	return TEXT("editor.trace.getThreads");
+	return TEXT("claireon.trace_get_threads");
 }
 
 FString ClaireonTool_TraceGetThreads::GetDescription() const

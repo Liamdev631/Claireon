@@ -80,12 +80,7 @@ namespace
 
 FString ClaireonTool_EQSInspect::GetName() const
 {
-	return TEXT("inspect_eqs");
-}
-
-FString ClaireonTool_EQSInspect::GetCategory() const
-{
-	return TEXT("eqs");
+	return TEXT("claireon.eqs_inspect");
 }
 
 FString ClaireonTool_EQSInspect::GetDescription() const

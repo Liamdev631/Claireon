@@ -10,7 +10,6 @@ class ClaireonTool_MapStatus : public IClaireonTool
 public:
 	virtual FString GetName() const override;
 	virtual FString GetDescription() const override;
-	virtual FString GetCategory() const override;
 	virtual TSharedPtr<FJsonObject> GetInputSchema() const override;
 	virtual FToolResult Execute(const TSharedPtr<FJsonObject>& Arguments) override;
 };

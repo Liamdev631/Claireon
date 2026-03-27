@@ -12,7 +12,7 @@
 
 FString ClaireonTool_PythonAuditLog::GetName() const
 {
-	return TEXT("editor.python.getAuditLog");
+	return TEXT("claireon.python_audit_log");
 }
 
 FString ClaireonTool_PythonAuditLog::GetDescription() const

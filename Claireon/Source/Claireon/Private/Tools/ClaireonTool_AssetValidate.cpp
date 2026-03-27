@@ -10,7 +10,7 @@
 
 FString ClaireonTool_AssetValidate::GetName() const
 {
-	return TEXT("validate_assets");
+	return TEXT("claireon.asset_validate");
 }
 
 FString ClaireonTool_AssetValidate::GetDescription() const

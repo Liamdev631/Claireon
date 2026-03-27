@@ -9,12 +9,7 @@
 
 FString ClaireonTool_AssetSearch::GetName() const
 {
-	return TEXT("find_assets");
-}
-
-FString ClaireonTool_AssetSearch::GetCategory() const
-{
-	return TEXT("assets");
+	return TEXT("claireon.asset_search");
 }
 
 FString ClaireonTool_AssetSearch::GetDescription() const

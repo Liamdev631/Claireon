@@ -18,7 +18,7 @@
 
 FString ClaireonTool_TestRun::GetName() const
 {
-	return TEXT("editor.test.run");
+	return TEXT("claireon.test_run");
 }
 
 FString ClaireonTool_TestRun::GetDescription() const

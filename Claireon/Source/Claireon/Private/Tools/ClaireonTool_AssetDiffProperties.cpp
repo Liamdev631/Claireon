@@ -11,12 +11,7 @@
 
 FString ClaireonTool_AssetDiffProperties::GetName() const
 {
-	return TEXT("diff_assets");
-}
-
-FString ClaireonTool_AssetDiffProperties::GetCategory() const
-{
-	return TEXT("diff");
+	return TEXT("claireon.asset_diff");
 }
 
 FString ClaireonTool_AssetDiffProperties::GetDescription() const

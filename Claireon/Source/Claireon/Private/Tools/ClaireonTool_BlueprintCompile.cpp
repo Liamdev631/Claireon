@@ -15,12 +15,7 @@
 
 FString ClaireonTool_BlueprintCompile::GetName() const
 {
-	return TEXT("compile_blueprints");
-}
-
-FString ClaireonTool_BlueprintCompile::GetCategory() const
-{
-	return TEXT("blueprint");
+	return TEXT("claireon.blueprint_compile");
 }
 
 FString ClaireonTool_BlueprintCompile::GetDescription() const

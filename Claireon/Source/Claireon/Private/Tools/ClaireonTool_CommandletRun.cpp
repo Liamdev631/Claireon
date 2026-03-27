@@ -14,7 +14,7 @@
 
 FString ClaireonTool_CommandletRun::GetName() const
 {
-	return TEXT("editor.commandlet.run");
+	return TEXT("claireon.commandlet_run");
 }
 
 FString ClaireonTool_CommandletRun::GetDescription() const

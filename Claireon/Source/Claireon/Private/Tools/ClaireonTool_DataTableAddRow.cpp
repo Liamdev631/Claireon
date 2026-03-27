@@ -11,12 +11,7 @@
 
 FString ClaireonTool_DataTableAddRow::GetName() const
 {
-	return TEXT("add_datatable_row");
-}
-
-FString ClaireonTool_DataTableAddRow::GetCategory() const
-{
-	return TEXT("datatable");
+	return TEXT("claireon.datatable_add_row");
 }
 
 FString ClaireonTool_DataTableAddRow::GetDescription() const

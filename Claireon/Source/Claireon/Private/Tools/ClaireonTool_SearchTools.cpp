@@ -16,7 +16,7 @@
 
 FString ClaireonTool_SearchTools::GetName() const
 {
-	return TEXT("search_tools");
+	return TEXT("claireon.tools_search");
 }
 
 FString ClaireonTool_SearchTools::GetDescription() const
@@ -75,11 +75,6 @@ TSharedPtr<FJsonObject> ClaireonTool_SearchTools::GetInputSchema() const
 	return Schema;
 }
 
-FString ClaireonTool_SearchTools::GetCategory() const
-{
-	return TEXT("meta");
-}
-
 // ---------------------------------------------------------------------------
 // Python catalog integration
 // ---------------------------------------------------------------------------
@@ -103,7 +98,7 @@ bool ClaireonTool_SearchTools::RebuildCatalog()
 		const FString ToolName = Tool->GetName();
 
 		// Skip meta tools
-		if (ToolName == TEXT("execute") || ToolName == TEXT("search_tools"))
+		if (ToolName == TEXT("claireon.python_execute") || ToolName == TEXT("claireon.tools_search"))
 		{
 			continue;
 		}
@@ -135,7 +130,7 @@ bool ClaireonTool_SearchTools::RebuildCatalog()
 
 	FPythonCommandEx PythonCommand;
 	PythonCommand.Command = PythonCode;
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
 	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Private;
 
 	FSlowHeartBeatScope SuspendHeartBeat;
@@ -178,7 +173,7 @@ TArray<FString> ClaireonTool_SearchTools::FuzzySearch(const FString& Query, int3
 
 	FPythonCommandEx PythonCommand;
 	PythonCommand.Command = PythonCode;
-	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteStatement;
+	PythonCommand.ExecutionMode = EPythonCommandExecutionMode::ExecuteFile;
 	PythonCommand.FileExecutionScope = EPythonFileExecutionScope::Private;
 
 	FSlowHeartBeatScope SuspendHeartBeat;
@@ -308,7 +303,7 @@ IClaireonTool::FToolResult ClaireonTool_SearchTools::Execute(const TSharedPtr<FJ
 		const FString ToolName = Tool->GetName();
 
 		// Skip meta tools
-		if (ToolName == TEXT("execute") || ToolName == TEXT("search_tools"))
+		if (ToolName == TEXT("claireon.python_execute") || ToolName == TEXT("claireon.tools_search"))
 		{
 			continue;
 		}

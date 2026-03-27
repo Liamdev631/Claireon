@@ -73,12 +73,7 @@ bool ClaireonTool_EditBlueprintGraph::bDelegateRegistered = false;
 
 FString ClaireonTool_EditBlueprintGraph::GetName() const
 {
-	return TEXT("edit_blueprint_graph");
-}
-
-FString ClaireonTool_EditBlueprintGraph::GetCategory() const
-{
-	return TEXT("blueprint");
+	return TEXT("claireon.blueprint_edit_graph");
 }
 
 FString ClaireonTool_EditBlueprintGraph::GetDescription() const

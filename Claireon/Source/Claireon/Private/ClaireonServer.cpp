@@ -404,12 +404,12 @@ TSharedPtr<FJsonObject> FClaireonServer::HandleToolsList(const FMCPRequestContex
 {
 	TArray<TSharedPtr<FJsonValue>> ToolArray;
 
-	// Only expose 2 MCP-visible tools: execute and search_tools
-	// All other tools are accessible only via tools.* inside execute
+	// Only expose 2 MCP-visible tools: claireon.python_execute and claireon.tools_search
+	// All other tools are accessible only via tools.claireon.* inside python_execute
 
 	// 1. Execute tool — with embedded type stubs for all registered tools
 	{
-		TSharedPtr<IClaireonTool>* ExecuteTool = Tools.Find(TEXT("execute"));
+		TSharedPtr<IClaireonTool>* ExecuteTool = Tools.Find(TEXT("claireon.python_execute"));
 		if (ExecuteTool && ExecuteTool->IsValid())
 		{
 			TSharedPtr<FJsonObject> ToolObj = MakeShared<FJsonObject>();
@@ -434,7 +434,7 @@ TSharedPtr<FJsonObject> FClaireonServer::HandleToolsList(const FMCPRequestContex
 
 	// 2. Search tools — standard description
 	{
-		TSharedPtr<IClaireonTool>* SearchTool = Tools.Find(TEXT("search_tools"));
+		TSharedPtr<IClaireonTool>* SearchTool = Tools.Find(TEXT("claireon.tools_search"));
 		if (SearchTool && SearchTool->IsValid())
 		{
 			TSharedPtr<FJsonObject> ToolObj = MakeShared<FJsonObject>();

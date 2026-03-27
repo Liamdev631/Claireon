@@ -32,7 +32,7 @@ TAtomic<int32> ClaireonTool_ExecutePython::TempFileCounter(0);
 
 FString ClaireonTool_ExecutePython::GetName() const
 {
-	return TEXT("execute");
+	return TEXT("claireon.python_execute");
 }
 
 FString ClaireonTool_ExecutePython::GetDescription() const
@@ -71,11 +71,6 @@ TSharedPtr<FJsonObject> ClaireonTool_ExecutePython::GetInputSchema() const
 	return Schema;
 }
 
-FString ClaireonTool_ExecutePython::GetCategory() const
-{
-	return TEXT("meta");
-}
-
 FString ClaireonTool_ExecutePython::GetPythonPrefix()
 {
 	// Constant string — the tools namespace wrapper from 04-BRIDGE.md
@@ -86,30 +81,37 @@ FString ClaireonTool_ExecutePython::GetPythonPrefix()
 		"import warnings as _warnings\n"
 		"_warnings.filterwarnings('ignore', category=DeprecationWarning)\n"
 		"\n"
-		"class _MCPToolNamespace:\n"
-		"    \"\"\"Proxy that routes attribute access to C++ tool dispatch.\"\"\"\n"
+		"class _MCPToolProxy:\n"
+		"    \"\"\"Callable proxy for a single tool that also supports further dotted access.\n"
+		"    tools.claireon returns _MCPToolProxy('claireon') — callable and supports .attr.\n"
+		"    tools.claireon.asset_search returns _MCPToolProxy('claireon.asset_search').\"\"\"\n"
 		"    _schema_cache = {}\n"
+		"    def __init__(self, full_name):\n"
+		"        object.__setattr__(self, '_full_name', full_name)\n"
+		"    def __call__(self, *args, **kwargs):\n"
+		"        fn = self._full_name\n"
+		"        if args:\n"
+		"            if fn not in _MCPToolProxy._schema_cache:\n"
+		"                schema_json = _unreal._mcp_call_tool('__get_schema__', fn)\n"
+		"                _MCPToolProxy._schema_cache[fn] = _json.loads(schema_json) if schema_json else {}\n"
+		"            schema = _MCPToolProxy._schema_cache[fn]\n"
+		"            required = schema.get('required', [])\n"
+		"            props = list(schema.get('properties', {}).keys())\n"
+		"            param_names = list(required) + [p for p in props if p not in required]\n"
+		"            for i, val in enumerate(args):\n"
+		"                if i < len(param_names):\n"
+		"                    kwargs[param_names[i]] = val\n"
+		"        result_json = _unreal._mcp_call_tool(fn, _json.dumps(kwargs))\n"
+		"        return _json.loads(result_json)\n"
 		"    def __getattr__(self, name):\n"
-		"        def _call(*args, **kwargs):\n"
-		"            if args:\n"
-		"                # Map positional args to parameter names from the tool's input schema\n"
-		"                if name not in _MCPToolNamespace._schema_cache:\n"
-		"                    schema_json = _unreal._mcp_call_tool('__get_schema__', name)\n"
-		"                    if schema_json:\n"
-		"                        _MCPToolNamespace._schema_cache[name] = _json.loads(schema_json)\n"
-		"                    else:\n"
-		"                        _MCPToolNamespace._schema_cache[name] = {}\n"
-		"                schema = _MCPToolNamespace._schema_cache[name]\n"
-		"                required = schema.get('required', [])\n"
-		"                props = list(schema.get('properties', {}).keys())\n"
-		"                param_names = list(required) + [p for p in props if p not in required]\n"
-		"                for i, val in enumerate(args):\n"
-		"                    if i < len(param_names):\n"
-		"                        kwargs[param_names[i]] = val\n"
-		"            result_json = _unreal._mcp_call_tool(name, _json.dumps(kwargs))\n"
-		"            return _json.loads(result_json)\n"
-		"        _call.__name__ = name\n"
-		"        return _call\n"
+		"        return _MCPToolProxy(self._full_name + '.' + name)\n"
+		"    def __repr__(self):\n"
+		"        return f'<tool {self._full_name}>'\n"
+		"\n"
+		"class _MCPToolNamespace:\n"
+		"    \"\"\"Root namespace: tools.claireon.asset_search() dispatches _mcp_call_tool('claireon.asset_search', ...).\"\"\"\n"
+		"    def __getattr__(self, name):\n"
+		"        return _MCPToolProxy(name)\n"
 		"\n"
 		"    def __dir__(self):\n"
 		"        \"\"\"Support tab-completion / introspection of available tools.\"\"\"\n"

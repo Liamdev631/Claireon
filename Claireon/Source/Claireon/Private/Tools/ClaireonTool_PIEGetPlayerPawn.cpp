@@ -15,7 +15,7 @@
 
 FString ClaireonTool_PIEGetPlayerPawn::GetName() const
 {
-	return TEXT("editor.pie.getPlayerPawnByPlayerIndex");
+	return TEXT("claireon.pie_get_player_pawn");
 }
 
 FString ClaireonTool_PIEGetPlayerPawn::GetDescription() const

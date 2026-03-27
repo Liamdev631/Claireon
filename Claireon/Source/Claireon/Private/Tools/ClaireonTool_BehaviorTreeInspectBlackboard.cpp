@@ -10,7 +10,7 @@
 
 FString ClaireonTool_BehaviorTreeInspectBlackboard::GetName() const
 {
-	return TEXT("editor.behaviortree.inspectBlackboard");
+	return TEXT("claireon.behaviortree_inspect_blackboard");
 }
 
 FString ClaireonTool_BehaviorTreeInspectBlackboard::GetDescription() const

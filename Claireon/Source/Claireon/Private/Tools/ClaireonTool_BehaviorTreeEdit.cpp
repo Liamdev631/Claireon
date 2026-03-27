@@ -60,7 +60,7 @@ namespace
 
 void ClaireonTool_BehaviorTreeEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.behaviortree.edit"))
+	if (Info.ToolName == TEXT("claireon.behaviortree_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -72,12 +72,7 @@ void ClaireonTool_BehaviorTreeEdit::HandleSessionClosed(const FMCPSessionClosedI
 
 FString ClaireonTool_BehaviorTreeEdit::GetName() const
 {
-	return TEXT("editor.behaviortree.edit");
-}
-
-FString ClaireonTool_BehaviorTreeEdit::GetCategory() const
-{
-	return TEXT("behaviortree");
+	return TEXT("claireon.behaviortree_edit");
 }
 
 FString ClaireonTool_BehaviorTreeEdit::GetDescription() const
@@ -330,7 +325,7 @@ FToolResult ClaireonTool_BehaviorTreeEdit::Operation_Open(const TSharedPtr<FJson
 	}
 
 	const FString ResolvedAssetPath = BT->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.behaviortree.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.behaviortree_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

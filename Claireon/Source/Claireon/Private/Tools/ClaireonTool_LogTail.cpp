@@ -15,12 +15,7 @@
 
 FString ClaireonTool_LogTail::GetName() const
 {
-	return TEXT("log_tail");
-}
-
-FString ClaireonTool_LogTail::GetCategory() const
-{
-	return TEXT("build");
+	return TEXT("claireon.log_tail");
 }
 
 FString ClaireonTool_LogTail::GetDescription() const

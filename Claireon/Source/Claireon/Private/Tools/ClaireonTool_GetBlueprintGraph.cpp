@@ -16,12 +16,7 @@
 
 FString ClaireonTool_GetBlueprintGraph::GetName() const
 {
-	return TEXT("get_blueprint_graph");
-}
-
-FString ClaireonTool_GetBlueprintGraph::GetCategory() const
-{
-	return TEXT("blueprint");
+	return TEXT("claireon.blueprint_get_graph");
 }
 
 FString ClaireonTool_GetBlueprintGraph::GetDescription() const

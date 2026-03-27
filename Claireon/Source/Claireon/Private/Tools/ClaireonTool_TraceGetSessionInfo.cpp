@@ -10,7 +10,7 @@
 
 FString ClaireonTool_TraceGetSessionInfo::GetName() const
 {
-	return TEXT("editor.trace.getSessionInfo");
+	return TEXT("claireon.trace_get_session_info");
 }
 
 FString ClaireonTool_TraceGetSessionInfo::GetDescription() const

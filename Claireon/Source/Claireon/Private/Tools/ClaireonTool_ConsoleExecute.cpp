@@ -12,12 +12,7 @@
 
 FString ClaireonTool_ConsoleExecute::GetName() const
 {
-	return TEXT("console_execute");
-}
-
-FString ClaireonTool_ConsoleExecute::GetCategory() const
-{
-	return TEXT("build");
+	return TEXT("claireon.console_execute");
 }
 
 FString ClaireonTool_ConsoleExecute::GetDescription() const

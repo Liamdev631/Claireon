@@ -38,7 +38,6 @@ class ClaireonTool_EQSEdit : public IClaireonTool
 {
 public:
 	virtual FString GetName() const override;
-	virtual FString GetCategory() const override;
 	virtual FString GetDescription() const override;
 	virtual FString GetFullDescription() const override;
 	virtual TSharedPtr<FJsonObject> GetInputSchema() const override;

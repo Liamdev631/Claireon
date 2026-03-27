@@ -27,7 +27,7 @@
 
 FString ClaireonTool_FormatBlueprintGraph::GetName() const
 {
-	return TEXT("editor.blueprint.formatGraph");
+	return TEXT("claireon.blueprint_format_graph");
 }
 
 FString ClaireonTool_FormatBlueprintGraph::GetDescription() const

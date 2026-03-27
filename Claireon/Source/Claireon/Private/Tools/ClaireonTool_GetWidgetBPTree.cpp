@@ -10,12 +10,7 @@
 
 FString ClaireonTool_GetWidgetBPTree::GetName() const
 {
-	return TEXT("get_widget_tree");
-}
-
-FString ClaireonTool_GetWidgetBPTree::GetCategory() const
-{
-	return TEXT("widget");
+	return TEXT("claireon.widgetbp_get_tree");
 }
 
 FString ClaireonTool_GetWidgetBPTree::GetDescription() const

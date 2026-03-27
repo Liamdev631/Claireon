@@ -6,7 +6,7 @@
 
 FString ClaireonTool_FeedbackSubmit::GetName() const
 {
-	return TEXT("editor.feedback.submit");
+	return TEXT("claireon.feedback_submit");
 }
 
 FString ClaireonTool_FeedbackSubmit::GetDescription() const
@@ -67,11 +67,6 @@ TSharedPtr<FJsonObject> ClaireonTool_FeedbackSubmit::GetInputSchema() const
 	Schema->SetArrayField(TEXT("required"), Required);
 
 	return Schema;
-}
-
-FString ClaireonTool_FeedbackSubmit::GetCategory() const
-{
-	return TEXT("meta");
 }
 
 IClaireonTool::FToolResult ClaireonTool_FeedbackSubmit::Execute(const TSharedPtr<FJsonObject>& Arguments)

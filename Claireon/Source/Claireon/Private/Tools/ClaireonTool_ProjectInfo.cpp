@@ -15,12 +15,7 @@
 
 FString ClaireonTool_ProjectInfo::GetName() const
 {
-	return TEXT("project_info");
-}
-
-FString ClaireonTool_ProjectInfo::GetCategory() const
-{
-	return TEXT("build");
+	return TEXT("claireon.project_info");
 }
 
 FString ClaireonTool_ProjectInfo::GetDescription() const

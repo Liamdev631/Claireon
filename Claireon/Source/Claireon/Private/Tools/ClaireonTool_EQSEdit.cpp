@@ -104,7 +104,7 @@ namespace
 
 void ClaireonTool_EQSEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.eqs.edit"))
+	if (Info.ToolName == TEXT("claireon.eqs_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -116,12 +116,7 @@ void ClaireonTool_EQSEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info
 
 FString ClaireonTool_EQSEdit::GetName() const
 {
-	return TEXT("editor.eqs.edit");
-}
-
-FString ClaireonTool_EQSEdit::GetCategory() const
-{
-	return TEXT("eqs");
+	return TEXT("claireon.eqs_edit");
 }
 
 FString ClaireonTool_EQSEdit::GetDescription() const
@@ -347,7 +342,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_Open(const TSharedPtr<FJsonObject>& 
 	}
 
 	const FString ResolvedAssetPath = Query->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.eqs.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.eqs_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

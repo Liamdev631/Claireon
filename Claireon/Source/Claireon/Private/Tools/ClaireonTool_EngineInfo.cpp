@@ -16,12 +16,7 @@
 
 FString ClaireonTool_EngineInfo::GetName() const
 {
-	return TEXT("engine_info");
-}
-
-FString ClaireonTool_EngineInfo::GetCategory() const
-{
-	return TEXT("build");
+	return TEXT("claireon.engine_info");
 }
 
 FString ClaireonTool_EngineInfo::GetDescription() const

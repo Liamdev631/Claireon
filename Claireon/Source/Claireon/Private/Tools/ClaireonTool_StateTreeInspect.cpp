@@ -12,12 +12,7 @@
 
 FString ClaireonTool_StateTreeInspect::GetName() const
 {
-	return TEXT("inspect_statetree");
-}
-
-FString ClaireonTool_StateTreeInspect::GetCategory() const
-{
-	return TEXT("statetree");
+	return TEXT("claireon.statetree_inspect");
 }
 
 FString ClaireonTool_StateTreeInspect::GetDescription() const

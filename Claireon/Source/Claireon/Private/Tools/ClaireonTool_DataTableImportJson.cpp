@@ -10,7 +10,7 @@
 
 FString ClaireonTool_DataTableImportJson::GetName() const
 {
-	return TEXT("editor.datatable.import_json");
+	return TEXT("claireon.datatable_import_json");
 }
 
 FString ClaireonTool_DataTableImportJson::GetDescription() const

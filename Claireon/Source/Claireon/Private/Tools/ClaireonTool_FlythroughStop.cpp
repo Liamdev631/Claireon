@@ -6,7 +6,7 @@
 
 FString ClaireonTool_FlythroughStop::GetName() const
 {
-	return TEXT("editor.pie.flythrough.stop");
+	return TEXT("claireon.pie_flythrough_stop");
 }
 
 FString ClaireonTool_FlythroughStop::GetDescription() const

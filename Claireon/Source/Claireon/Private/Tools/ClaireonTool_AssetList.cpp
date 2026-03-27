@@ -13,7 +13,7 @@
 
 FString ClaireonTool_AssetList::GetName() const
 {
-	return TEXT("editor.asset.list");
+	return TEXT("claireon.asset_list");
 }
 
 FString ClaireonTool_AssetList::GetDescription() const

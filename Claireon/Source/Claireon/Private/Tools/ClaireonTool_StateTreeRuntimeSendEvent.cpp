@@ -12,7 +12,7 @@
 
 FString ClaireonTool_StateTreeRuntimeSendEvent::GetName() const
 {
-	return TEXT("editor.statetree.runtime.sendEvent");
+	return TEXT("claireon.statetree_runtime_send_event");
 }
 
 FString ClaireonTool_StateTreeRuntimeSendEvent::GetDescription() const

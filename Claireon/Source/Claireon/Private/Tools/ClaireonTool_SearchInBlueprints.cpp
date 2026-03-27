@@ -9,12 +9,7 @@
 
 FString ClaireonTool_SearchInBlueprints::GetName() const
 {
-	return TEXT("search_blueprints");
-}
-
-FString ClaireonTool_SearchInBlueprints::GetCategory() const
-{
-	return TEXT("blueprint");
+	return TEXT("claireon.blueprint_search");
 }
 
 FString ClaireonTool_SearchInBlueprints::GetDescription() const

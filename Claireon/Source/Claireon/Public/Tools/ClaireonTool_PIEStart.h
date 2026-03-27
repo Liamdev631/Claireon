@@ -11,7 +11,6 @@ public:
 	virtual FString GetName() const override;
 	virtual FString GetDescription() const override;
 	virtual TSharedPtr<FJsonObject> GetInputSchema() const override;
-	virtual FString GetCategory() const override { return TEXT("pie"); }
 	virtual FToolResult Execute(const TSharedPtr<FJsonObject>& Arguments) override;
 
 	/** Execute the deferred PIE start (called from the post-execution hook). */

@@ -17,12 +17,7 @@
 
 FString ClaireonTool_LiveCodingReload::GetName() const
 {
-	return TEXT("live_coding_reload_async");
-}
-
-FString ClaireonTool_LiveCodingReload::GetCategory() const
-{
-	return TEXT("build");
+	return TEXT("claireon.editor_live_coding_reload_async");
 }
 
 FString ClaireonTool_LiveCodingReload::GetDescription() const

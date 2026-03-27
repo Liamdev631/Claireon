@@ -42,12 +42,7 @@ bool ClaireonTool_EditWidgetBP::bDelegateRegistered = false;
 
 FString ClaireonTool_EditWidgetBP::GetName() const
 {
-	return TEXT("editor.widgetbp.edit");
-}
-
-FString ClaireonTool_EditWidgetBP::GetCategory() const
-{
-	return TEXT("widget");
+	return TEXT("claireon.widgetbp_edit");
 }
 
 FString ClaireonTool_EditWidgetBP::GetDescription() const
@@ -320,7 +315,7 @@ FToolResult ClaireonTool_EditWidgetBP::Execute(const TSharedPtr<FJsonObject>& Ar
 
 void ClaireonTool_EditWidgetBP::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.widgetbp.edit"))
+	if (Info.ToolName == TEXT("claireon.widgetbp_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -365,7 +360,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_Open(const TSharedPtr<FJsonObje
 	FString CanonicalPath = WBP->GetPathName();
 
 	// Open session (acts as exclusive lock)
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(CanonicalPath, TEXT("editor.widgetbp.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(CanonicalPath, TEXT("claireon.widgetbp_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();
@@ -535,7 +530,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_Create(const TSharedPtr<FJsonOb
 
 	// Open session (acts as exclusive lock)
 	FString FinalAssetPath = NewWBP->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(FinalAssetPath, TEXT("editor.widgetbp.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(FinalAssetPath, TEXT("claireon.widgetbp_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

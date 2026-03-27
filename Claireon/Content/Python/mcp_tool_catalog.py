@@ -220,7 +220,7 @@ def _expand_query(query: str) -> str:
             else:
                 expanded_parts.append(token)
 
-    return " ".join(expanded_parts)
+    return " AND ".join(expanded_parts)
 
 
 def search(query: str, max_results: int = 20, method: str = "hybrid") -> list:

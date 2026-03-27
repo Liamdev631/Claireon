@@ -23,7 +23,7 @@
 
 FString ClaireonTool_PIEWaitFor::GetName() const
 {
-	return TEXT("editor.pie.waitFor");
+	return TEXT("claireon.pie_wait_for");
 }
 
 FString ClaireonTool_PIEWaitFor::GetDescription() const

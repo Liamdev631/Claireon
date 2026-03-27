@@ -11,12 +11,7 @@
 
 FString ClaireonTool_DataTableGetRow::GetName() const
 {
-	return TEXT("get_datatable_row");
-}
-
-FString ClaireonTool_DataTableGetRow::GetCategory() const
-{
-	return TEXT("datatable");
+	return TEXT("claireon.datatable_get_row");
 }
 
 FString ClaireonTool_DataTableGetRow::GetDescription() const

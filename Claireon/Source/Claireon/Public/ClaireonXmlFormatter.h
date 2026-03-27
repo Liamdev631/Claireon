@@ -30,7 +30,7 @@ public:
 
 	/**
 	 * Generate a Python-style type signature from a tool's input schema.
-	 * e.g. "tools.find_assets(search_dir: str, class_filter: str = \"\", ...) -> dict"
+	 * e.g. "tools.claireon.asset_search(search_dir: str, class_filter: str = \"\", ...) -> dict"
 	 */
 	static FString GenerateTypeSignature(const FString& ToolName, const TSharedPtr<FJsonObject>& InputSchema);
 

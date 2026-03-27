@@ -11,7 +11,7 @@
 
 FString ClaireonTool_PIETraceStart::GetName() const
 {
-	return TEXT("editor.pie.trace.start");
+	return TEXT("claireon.pie_trace_start");
 }
 
 FString ClaireonTool_PIETraceStart::GetDescription() const

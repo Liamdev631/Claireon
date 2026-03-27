@@ -13,7 +13,7 @@
 
 FString ClaireonTool_DataTableSearch::GetName() const
 {
-	return TEXT("editor.datatable.search");
+	return TEXT("claireon.datatable_search");
 }
 
 FString ClaireonTool_DataTableSearch::GetDescription() const

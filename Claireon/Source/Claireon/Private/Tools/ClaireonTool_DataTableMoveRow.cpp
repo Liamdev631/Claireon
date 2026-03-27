@@ -11,7 +11,7 @@
 
 FString ClaireonTool_DataTableMoveRow::GetName() const
 {
-	return TEXT("editor.datatable.move_row");
+	return TEXT("claireon.datatable_move_row");
 }
 
 FString ClaireonTool_DataTableMoveRow::GetDescription() const

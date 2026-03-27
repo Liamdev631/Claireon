@@ -10,7 +10,7 @@
 
 FString ClaireonTool_DataTableImportCsv::GetName() const
 {
-	return TEXT("editor.datatable.import_csv");
+	return TEXT("claireon.datatable_import_csv");
 }
 
 FString ClaireonTool_DataTableImportCsv::GetDescription() const

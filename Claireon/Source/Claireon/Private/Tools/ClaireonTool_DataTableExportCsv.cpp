@@ -10,7 +10,7 @@
 
 FString ClaireonTool_DataTableExportCsv::GetName() const
 {
-	return TEXT("editor.datatable.export_csv");
+	return TEXT("claireon.datatable_export_csv");
 }
 
 FString ClaireonTool_DataTableExportCsv::GetDescription() const

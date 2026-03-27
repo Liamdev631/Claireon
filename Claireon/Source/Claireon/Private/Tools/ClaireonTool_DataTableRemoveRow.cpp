@@ -11,12 +11,7 @@
 
 FString ClaireonTool_DataTableRemoveRow::GetName() const
 {
-	return TEXT("remove_datatable_row");
-}
-
-FString ClaireonTool_DataTableRemoveRow::GetCategory() const
-{
-	return TEXT("datatable");
+	return TEXT("claireon.datatable_remove_row");
 }
 
 FString ClaireonTool_DataTableRemoveRow::GetDescription() const

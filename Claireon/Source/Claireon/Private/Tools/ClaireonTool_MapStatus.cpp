@@ -14,12 +14,7 @@
 
 FString ClaireonTool_MapStatus::GetName() const
 {
-	return TEXT("get_map_status");
-}
-
-FString ClaireonTool_MapStatus::GetCategory() const
-{
-	return TEXT("level");
+	return TEXT("claireon.map_status");
 }
 
 FString ClaireonTool_MapStatus::GetDescription() const

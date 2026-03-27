@@ -15,12 +15,7 @@
 
 FString ClaireonTool_MapOpen::GetName() const
 {
-	return TEXT("open_map_async");
-}
-
-FString ClaireonTool_MapOpen::GetCategory() const
-{
-	return TEXT("level");
+	return TEXT("claireon.map_open_async");
 }
 
 FString ClaireonTool_MapOpen::GetDescription() const

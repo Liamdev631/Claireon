@@ -19,7 +19,7 @@
 
 FString ClaireonTool_StateTreeListNodeTypes::GetName() const
 {
-	return TEXT("editor.statetree.listNodeTypes");
+	return TEXT("claireon.statetree_list_node_types");
 }
 
 FString ClaireonTool_StateTreeListNodeTypes::GetDescription() const

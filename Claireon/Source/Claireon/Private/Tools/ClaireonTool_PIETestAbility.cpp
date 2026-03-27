@@ -18,7 +18,7 @@
 
 FString ClaireonTool_PIETestAbility::GetName() const
 {
-	return TEXT("pie_test_ability");
+	return TEXT("claireon.pie_test_ability");
 }
 
 FString ClaireonTool_PIETestAbility::GetDescription() const

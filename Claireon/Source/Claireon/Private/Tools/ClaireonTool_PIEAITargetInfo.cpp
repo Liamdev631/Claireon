@@ -17,7 +17,7 @@
 
 FString ClaireonTool_PIEAITargetInfo::GetName() const
 {
-	return TEXT("editor.pie.getAITargetInfo");
+	return TEXT("claireon.pie_get_ai_target_info");
 }
 
 FString ClaireonTool_PIEAITargetInfo::GetDescription() const

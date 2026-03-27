@@ -870,43 +870,43 @@ TArray<TSharedPtr<FJsonValue>> FClaireonAnthropicClient::BuildToolDefinitions() 
 	SanitizedToOriginalToolName.Reset();
 	const TMap<FString, TSharedPtr<IClaireonTool>>& Tools = CurrentServer->GetTools();
 
-	// Code Mode: only expose execute + search_tools.
-	// All other tools are available via the tools.* Python bridge inside execute.
+	// Code Mode: only expose claireon.python_execute + claireon.tools_search.
+	// All other tools are available via the tools.claireon.* Python bridge inside python_execute.
 
-	// 1. execute — with embedded type stubs for all tools
+	// 1. claireon.python_execute — with embedded type stubs for all tools
 	{
-		const TSharedPtr<IClaireonTool>* ExecuteTool = Tools.Find(TEXT("execute"));
+		const TSharedPtr<IClaireonTool>* ExecuteTool = Tools.Find(TEXT("claireon.python_execute"));
 		if (ExecuteTool && ExecuteTool->IsValid())
 		{
 			FString CategorySummary = FClaireonXmlFormatter::GenerateCategorySummary(Tools);
 			FString Description = TEXT(
 				"Run Python code with access to the tools.* namespace. "
-				"All MCP tools are callable as tools.<name>(...). "
+				"All MCP tools are callable as tools.claireon.<name>(...). "
 				"The code runs in the Unreal Editor Python environment with the 'unreal' module available.\n\n")
 				+ CategorySummary;
 
 			TSharedPtr<FJsonObject> ToolDef = MakeShared<FJsonObject>();
-			ToolDef->SetStringField(TEXT("name"), TEXT("execute"));
+			ToolDef->SetStringField(TEXT("name"), TEXT("claireon.python_execute"));
 			ToolDef->SetStringField(TEXT("description"), Description);
 			ToolDef->SetObjectField(TEXT("input_schema"), (*ExecuteTool)->GetInputSchema());
 			ToolDefs.Add(MakeShared<FJsonValueObject>(ToolDef));
 
-			SanitizedToOriginalToolName.Add(TEXT("execute"), TEXT("execute"));
+			SanitizedToOriginalToolName.Add(TEXT("claireon.python_execute"), TEXT("claireon.python_execute"));
 		}
 	}
 
-	// 2. search_tools — for dynamic discovery
+	// 2. claireon.tools_search — for dynamic discovery
 	{
-		const TSharedPtr<IClaireonTool>* SearchTool = Tools.Find(TEXT("search_tools"));
+		const TSharedPtr<IClaireonTool>* SearchTool = Tools.Find(TEXT("claireon.tools_search"));
 		if (SearchTool && SearchTool->IsValid())
 		{
 			TSharedPtr<FJsonObject> ToolDef = MakeShared<FJsonObject>();
-			ToolDef->SetStringField(TEXT("name"), TEXT("search_tools"));
+			ToolDef->SetStringField(TEXT("name"), TEXT("claireon.tools_search"));
 			ToolDef->SetStringField(TEXT("description"), (*SearchTool)->GetDescription());
 			ToolDef->SetObjectField(TEXT("input_schema"), (*SearchTool)->GetInputSchema());
 			ToolDefs.Add(MakeShared<FJsonValueObject>(ToolDef));
 
-			SanitizedToOriginalToolName.Add(TEXT("search_tools"), TEXT("search_tools"));
+			SanitizedToOriginalToolName.Add(TEXT("claireon.tools_search"), TEXT("claireon.tools_search"));
 		}
 	}
 

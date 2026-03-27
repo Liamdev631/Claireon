@@ -13,7 +13,7 @@
 
 FString ClaireonTool_PIEStatus::GetName() const
 {
-	return TEXT("pie_status");
+	return TEXT("claireon.pie_status");
 }
 
 FString ClaireonTool_PIEStatus::GetDescription() const

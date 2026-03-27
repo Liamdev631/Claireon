@@ -6,7 +6,7 @@
 
 FString ClaireonTool_FlythroughStatus::GetName() const
 {
-	return TEXT("editor.pie.flythrough.getStatus");
+	return TEXT("claireon.pie_flythrough_status");
 }
 
 FString ClaireonTool_FlythroughStatus::GetDescription() const

@@ -15,7 +15,7 @@
 
 FString ClaireonTool_AssetResave::GetName() const
 {
-	return TEXT("resave_assets");
+	return TEXT("claireon.asset_resave");
 }
 
 FString ClaireonTool_AssetResave::GetDescription() const

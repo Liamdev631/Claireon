@@ -14,7 +14,7 @@
 
 FString ClaireonTool_PIERegisterDamageListener::GetName() const
 {
-	return TEXT("editor.pie.registerDamageListener");
+	return TEXT("claireon.pie_register_damage_listener");
 }
 
 FString ClaireonTool_PIERegisterDamageListener::GetDescription() const

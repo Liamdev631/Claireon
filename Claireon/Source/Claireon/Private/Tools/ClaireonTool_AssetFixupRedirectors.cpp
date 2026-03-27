@@ -12,7 +12,7 @@
 
 FString ClaireonTool_AssetFixupRedirectors::GetName() const
 {
-	return TEXT("editor.asset.fixupRedirectors");
+	return TEXT("claireon.asset_fixup_redirectors");
 }
 
 FString ClaireonTool_AssetFixupRedirectors::GetDescription() const

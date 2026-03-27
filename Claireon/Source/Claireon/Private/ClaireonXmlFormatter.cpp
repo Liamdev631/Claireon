@@ -43,21 +43,21 @@ FString FClaireonXmlFormatter::FormatExecuteResult(const IClaireonTool::FToolRes
 		else if (ErrorMsg.Contains(TEXT("NameError")))
 		{
 			ErrorCode = TEXT("name_error");
-			Suggestion = TEXT("Variable or function not defined. Use tools.search_tools() to discover available tools, or check variable names.");
+			Suggestion = TEXT("Variable or function not defined. Use tools.claireon.tools_search() to discover available tools, or check variable names.");
 		}
 		else if (ErrorMsg.Contains(TEXT("KeyError")))
 		{
 			ErrorCode = TEXT("key_error");
-			Suggestion = TEXT("Dictionary key not found. Check the structure of the returned data with tools.search_tools().");
+			Suggestion = TEXT("Dictionary key not found. Check the structure of the returned data with tools.claireon.tools_search().");
 		}
 		else if (ErrorMsg.Contains(TEXT("AttributeError")))
 		{
 			ErrorCode = TEXT("attribute_error");
-			Suggestion = TEXT("Object does not have the requested attribute. Use tools.search_tools() to discover available tool names.");
+			Suggestion = TEXT("Object does not have the requested attribute. Use tools.claireon.tools_search() to discover available tool names.");
 		}
 		else
 		{
-			Suggestion = TEXT("Review the error message and logs. Use tools.search_tools() to discover available tools.");
+			Suggestion = TEXT("Review the error message and logs. Use tools.claireon.tools_search() to discover available tools.");
 		}
 
 		Xml = FormatErrorResult(Result.ErrorMessage, Suggestion, Result.Logs);
@@ -355,7 +355,7 @@ FString FClaireonXmlFormatter::GenerateToolStubs(const TMap<FString, TSharedPtr<
 		const FString Name = Tool->GetName();
 
 		// Skip meta tools — they are the MCP-visible tools, not bridge tools
-		if (Name == TEXT("execute") || Name == TEXT("search_tools"))
+		if (Name == TEXT("claireon.python_execute") || Name == TEXT("claireon.tools_search"))
 		{
 			continue;
 		}
@@ -401,7 +401,7 @@ FString FClaireonXmlFormatter::GenerateCategorySummary(const TMap<FString, TShar
 	{
 		const TSharedPtr<IClaireonTool>& Tool = Pair.Value;
 		const FString Name = Tool->GetName();
-		if (Name == TEXT("execute") || Name == TEXT("search_tools"))
+		if (Name == TEXT("claireon.python_execute") || Name == TEXT("claireon.tools_search"))
 		{
 			continue;
 		}
@@ -414,7 +414,7 @@ FString FClaireonXmlFormatter::GenerateCategorySummary(const TMap<FString, TShar
 
 	constexpr int32 MaxExamples = 3;
 
-	FString Summary = TEXT("Available tool categories (use search_tools to discover full signatures):\n");
+	FString Summary = TEXT("Available tool categories (use tools.claireon.tools_search() to discover full signatures):\n");
 	for (const FString& Category : Categories)
 	{
 		TArray<FString>& Names = Grouped[Category];

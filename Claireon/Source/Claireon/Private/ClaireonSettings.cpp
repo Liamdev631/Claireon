@@ -39,7 +39,7 @@ FString UClaireonSettings::GetEffectiveSystemPrompt() const
         "- If a task seems impossible, search more broadly — there are 90+ tools across "
         "15 categories. The answer is usually a tool you haven't discovered yet.\n\n"
         "**Code style:**\n"
-        "- Assign the final value to `result` so it is captured: `result = tools.open_map(mapPath=path)`\n"
+        "- Assign the final value to `result` so it is captured: `result = tools.claireon.map_open_async(mapPath=path)`\n"
         "- Do not write comments in code — it is not for human consumption.\n"
         "- Keep code minimal and direct.\n\n"
 

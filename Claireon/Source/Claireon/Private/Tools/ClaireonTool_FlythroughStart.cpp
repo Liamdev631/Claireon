@@ -9,7 +9,7 @@
 
 FString ClaireonTool_FlythroughStart::GetName() const
 {
-	return TEXT("editor.pie.flythrough.start");
+	return TEXT("claireon.pie_flythrough_start");
 }
 
 FString ClaireonTool_FlythroughStart::GetDescription() const

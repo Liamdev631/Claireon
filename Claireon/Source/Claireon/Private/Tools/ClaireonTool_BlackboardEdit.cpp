@@ -62,7 +62,7 @@ namespace
 
 void ClaireonTool_BlackboardEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.blackboard.edit"))
+	if (Info.ToolName == TEXT("claireon.blackboard_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -74,7 +74,7 @@ void ClaireonTool_BlackboardEdit::HandleSessionClosed(const FMCPSessionClosedInf
 
 FString ClaireonTool_BlackboardEdit::GetName() const
 {
-	return TEXT("editor.blackboard.edit");
+	return TEXT("claireon.blackboard_edit");
 }
 
 FString ClaireonTool_BlackboardEdit::GetDescription() const
@@ -293,7 +293,7 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_Open(const TSharedPtr<FJsonOb
 	}
 
 	const FString ResolvedAssetPath = BB->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.blackboard.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.blackboard_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

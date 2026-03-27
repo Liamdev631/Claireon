@@ -263,7 +263,7 @@ bool ClaireonTool_NiagaraEdit::bDelegateRegistered = false;
 
 void ClaireonTool_NiagaraEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.niagara.edit"))
+	if (Info.ToolName == TEXT("claireon.niagara_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -275,12 +275,7 @@ void ClaireonTool_NiagaraEdit::HandleSessionClosed(const FMCPSessionClosedInfo& 
 
 FString ClaireonTool_NiagaraEdit::GetName() const
 {
-	return TEXT("editor.niagara.edit");
-}
-
-FString ClaireonTool_NiagaraEdit::GetCategory() const
-{
-	return TEXT("niagara");
+	return TEXT("claireon.niagara_edit");
 }
 
 FString ClaireonTool_NiagaraEdit::GetDescription() const
@@ -585,7 +580,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_Open(const TSharedPtr<FJsonObjec
 	}
 
 	const FString ResolvedAssetPath = System->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.niagara.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.niagara_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();
@@ -1920,7 +1915,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_Create(const TSharedPtr<FJsonObj
 	}
 
 	const FString ResolvedAssetPath = System->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.niagara.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.niagara_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

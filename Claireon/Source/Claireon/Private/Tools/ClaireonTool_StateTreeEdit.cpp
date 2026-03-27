@@ -163,12 +163,7 @@ namespace
 
 FString ClaireonTool_StateTreeEdit::GetName() const
 {
-	return TEXT("editor.statetree.edit");
-}
-
-FString ClaireonTool_StateTreeEdit::GetCategory() const
-{
-	return TEXT("statetree");
+	return TEXT("claireon.statetree_edit");
 }
 
 FString ClaireonTool_StateTreeEdit::GetDescription() const
@@ -386,7 +381,7 @@ FToolResult ClaireonTool_StateTreeEdit::Execute(const TSharedPtr<FJsonObject>& A
 
 void ClaireonTool_StateTreeEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.statetree.edit"))
+	if (Info.ToolName == TEXT("claireon.statetree_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -496,7 +491,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_Open(const TSharedPtr<FJsonObj
 	}
 
 	const FString ResolvedAssetPath = StateTree->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.statetree.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.statetree_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

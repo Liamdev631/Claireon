@@ -14,7 +14,7 @@
 
 FString ClaireonTool_AssetCook::GetName() const
 {
-	return TEXT("editor.asset.cook");
+	return TEXT("claireon.asset_cook");
 }
 
 FString ClaireonTool_AssetCook::GetDescription() const

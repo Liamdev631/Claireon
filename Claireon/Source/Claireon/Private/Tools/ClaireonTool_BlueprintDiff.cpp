@@ -128,12 +128,7 @@ FString FormatTreeDiffType(ETreeDiffType::Type DiffType)
 
 FString ClaireonTool_BlueprintDiff::GetName() const
 {
-	return TEXT("diff_blueprint");
-}
-
-FString ClaireonTool_BlueprintDiff::GetCategory() const
-{
-	return TEXT("diff");
+	return TEXT("claireon.blueprint_diff");
 }
 
 FString ClaireonTool_BlueprintDiff::GetDescription() const

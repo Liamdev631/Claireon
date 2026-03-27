@@ -10,7 +10,7 @@
 
 FString ClaireonTool_TestList::GetName() const
 {
-	return TEXT("editor.test.list");
+	return TEXT("claireon.test_list");
 }
 
 FString ClaireonTool_TestList::GetDescription() const

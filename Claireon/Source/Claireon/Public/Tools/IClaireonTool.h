@@ -47,8 +47,26 @@ public:
 	/** Returns the JSON Schema for the tool's input parameters */
 	virtual TSharedPtr<FJsonObject> GetInputSchema() const = 0;
 
-	/** Returns the tool category for registry grouping and search_tools */
-	virtual FString GetCategory() const { return TEXT("uncategorized"); }
+	/** Returns the tool category for registry grouping and search_tools.
+	 *  Default: auto-derived from GetName() by stripping "claireon." prefix and returning
+	 *  everything before the first underscore. E.g. "claireon.asset_search" → "asset".
+	 *  Override only if the auto-derived category is incorrect. */
+	virtual FString GetCategory() const
+	{
+		FString Name = GetName();
+		// Strip "claireon." prefix
+		if (Name.StartsWith(TEXT("claireon.")))
+		{
+			Name.RightChopInline(7);
+		}
+		// Return everything before the first underscore
+		int32 UnderscorePos;
+		if (Name.FindChar(TEXT('_'), UnderscorePos))
+		{
+			return Name.Left(UnderscorePos);
+		}
+		return Name;
+	}
 
 	/** Result of a tool execution */
 	struct FToolResult

@@ -19,7 +19,7 @@
 
 FString ClaireonTool_PIEStart::GetName() const
 {
-	return TEXT("pie_start_async");
+	return TEXT("claireon.pie_start_async");
 }
 
 FString ClaireonTool_PIEStart::GetDescription() const
@@ -86,7 +86,7 @@ IClaireonTool::FToolResult ClaireonTool_PIEStart::Execute(const TSharedPtr<FJson
 	FClaireonPIEManager& PIEManager = FClaireonPIEManager::Get();
 	if (PIEManager.GetActiveSession() != nullptr)
 	{
-		return MakeErrorResult(TEXT("A PIE session is already active. Stop it first with pie_stop_async."));
+		return MakeErrorResult(TEXT("A PIE session is already active. Stop it first with claireon.pie_stop_async."));
 	}
 
 	// Determine net mode (validate now, execute later)

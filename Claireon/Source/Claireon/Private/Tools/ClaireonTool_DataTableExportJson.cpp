@@ -10,7 +10,7 @@
 
 FString ClaireonTool_DataTableExportJson::GetName() const
 {
-	return TEXT("editor.datatable.export_json");
+	return TEXT("claireon.datatable_export_json");
 }
 
 FString ClaireonTool_DataTableExportJson::GetDescription() const

@@ -8,7 +8,7 @@
 
 FString ClaireonTool_ReleaseSessions::GetName() const
 {
-	return TEXT("mcp_release_sessions");
+	return TEXT("claireon.session_release");
 }
 
 FString ClaireonTool_ReleaseSessions::GetDescription() const

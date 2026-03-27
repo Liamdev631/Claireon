@@ -13,12 +13,7 @@
 
 FString ClaireonTool_BehaviorTreeInspect::GetName() const
 {
-	return TEXT("inspect_behaviortree");
-}
-
-FString ClaireonTool_BehaviorTreeInspect::GetCategory() const
-{
-	return TEXT("behaviortree");
+	return TEXT("claireon.behaviortree_inspect");
 }
 
 FString ClaireonTool_BehaviorTreeInspect::GetDescription() const

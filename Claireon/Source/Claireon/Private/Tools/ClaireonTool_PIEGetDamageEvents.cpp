@@ -11,7 +11,7 @@
 
 FString ClaireonTool_PIEGetDamageEvents::GetName() const
 {
-	return TEXT("editor.pie.getDamageEvents");
+	return TEXT("claireon.pie_get_damage_events");
 }
 
 FString ClaireonTool_PIEGetDamageEvents::GetDescription() const

@@ -9,12 +9,7 @@
 
 FString ClaireonTool_TraceOpen::GetName() const
 {
-	return TEXT("trace_open");
-}
-
-FString ClaireonTool_TraceOpen::GetCategory() const
-{
-	return TEXT("trace");
+	return TEXT("claireon.trace_open");
 }
 
 FString ClaireonTool_TraceOpen::GetDescription() const

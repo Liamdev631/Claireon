@@ -31,7 +31,7 @@ bool ClaireonTool_PCGGraphEdit::bDelegateRegistered = false;
 
 void ClaireonTool_PCGGraphEdit::HandleSessionClosed(const FMCPSessionClosedInfo& Info)
 {
-	if (Info.ToolName == TEXT("editor.pcg.edit"))
+	if (Info.ToolName == TEXT("claireon.pcg_edit"))
 	{
 		ToolData.Remove(Info.SessionId);
 	}
@@ -43,12 +43,7 @@ void ClaireonTool_PCGGraphEdit::HandleSessionClosed(const FMCPSessionClosedInfo&
 
 FString ClaireonTool_PCGGraphEdit::GetName() const
 {
-	return TEXT("editor.pcg.edit");
-}
-
-FString ClaireonTool_PCGGraphEdit::GetCategory() const
-{
-	return TEXT("pcg");
+	return TEXT("claireon.pcg_edit");
 }
 
 FString ClaireonTool_PCGGraphEdit::GetDescription() const
@@ -296,7 +291,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_Open(const TSharedPtr<FJsonObje
 	}
 
 	const FString ResolvedAssetPath = Graph->GetPathName();
-	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("editor.pcg.edit"));
+	FMCPOpenSessionResult OpenResult = FClaireonSessionManager::Get().OpenSession(ResolvedAssetPath, TEXT("claireon.pcg_edit"));
 	if (OpenResult.Result == EOpenSessionResult::BlockedByOtherTool)
 	{
 		const FMCPSession& Blocker = OpenResult.BlockingSession.GetValue();

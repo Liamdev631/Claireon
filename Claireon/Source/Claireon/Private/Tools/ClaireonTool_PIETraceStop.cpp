@@ -6,7 +6,7 @@
 
 FString ClaireonTool_PIETraceStop::GetName() const
 {
-	return TEXT("editor.pie.trace.stop");
+	return TEXT("claireon.pie_trace_stop");
 }
 
 FString ClaireonTool_PIETraceStop::GetDescription() const

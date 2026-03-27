@@ -14,7 +14,7 @@
 
 FString ClaireonTool_PIEGetActor::GetName() const
 {
-	return TEXT("pie_get_actor");
+	return TEXT("claireon.pie_get_actor");
 }
 
 FString ClaireonTool_PIEGetActor::GetDescription() const

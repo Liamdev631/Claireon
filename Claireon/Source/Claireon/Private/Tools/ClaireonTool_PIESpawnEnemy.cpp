@@ -18,7 +18,7 @@
 
 FString ClaireonTool_PIESpawnEnemy::GetName() const
 {
-	return TEXT("pie_spawn_enemy");
+	return TEXT("claireon.pie_spawn_enemy");
 }
 
 FString ClaireonTool_PIESpawnEnemy::GetDescription() const

@@ -19,7 +19,7 @@
 
 FString ClaireonTool_PIECheckInitState::GetName() const
 {
-	return TEXT("editor.pie.checkInitState");
+	return TEXT("claireon.pie_check_init_state");
 }
 
 FString ClaireonTool_PIECheckInitState::GetDescription() const

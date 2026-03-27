@@ -15,7 +15,7 @@
 
 FString ClaireonTool_PIEGetComponent::GetName() const
 {
-	return TEXT("editor.pie.getComponentFromActor");
+	return TEXT("claireon.pie_get_component");
 }
 
 FString ClaireonTool_PIEGetComponent::GetDescription() const

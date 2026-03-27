@@ -14,12 +14,7 @@
 
 FString ClaireonTool_GetBlueprintProperties::GetName() const
 {
-	return TEXT("get_blueprint_properties");
-}
-
-FString ClaireonTool_GetBlueprintProperties::GetCategory() const
-{
-	return TEXT("blueprint");
+	return TEXT("claireon.blueprint_get_properties");
 }
 
 FString ClaireonTool_GetBlueprintProperties::GetDescription() const

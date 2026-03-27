@@ -11,7 +11,7 @@
 
 FString ClaireonTool_DataTableDuplicateRow::GetName() const
 {
-	return TEXT("editor.datatable.duplicate_row");
+	return TEXT("claireon.datatable_duplicate_row");
 }
 
 FString ClaireonTool_DataTableDuplicateRow::GetDescription() const

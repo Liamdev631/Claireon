@@ -12,12 +12,7 @@
 
 FString ClaireonTool_TraceGetFrameStats::GetName() const
 {
-	return TEXT("trace_get_frame_stats");
-}
-
-FString ClaireonTool_TraceGetFrameStats::GetCategory() const
-{
-	return TEXT("trace");
+	return TEXT("claireon.trace_get_frame_stats");
 }
 
 FString ClaireonTool_TraceGetFrameStats::GetDescription() const

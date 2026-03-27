@@ -291,12 +291,7 @@ bool CompareNodeArrays(
 
 FString ClaireonTool_StateTreeDiff::GetName() const
 {
-	return TEXT("diff_statetree");
-}
-
-FString ClaireonTool_StateTreeDiff::GetCategory() const
-{
-	return TEXT("diff");
+	return TEXT("claireon.statetree_diff");
 }
 
 FString ClaireonTool_StateTreeDiff::GetDescription() const

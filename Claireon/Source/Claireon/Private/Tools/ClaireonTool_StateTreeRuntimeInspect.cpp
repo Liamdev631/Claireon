@@ -13,7 +13,7 @@
 
 FString ClaireonTool_StateTreeRuntimeInspect::GetName() const
 {
-	return TEXT("editor.statetree.runtime.inspect");
+	return TEXT("claireon.statetree_runtime_inspect");
 }
 
 FString ClaireonTool_StateTreeRuntimeInspect::GetDescription() const

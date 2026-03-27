@@ -11,7 +11,7 @@
 
 FString ClaireonTool_DataTableRenameRow::GetName() const
 {
-	return TEXT("editor.datatable.rename_row");
+	return TEXT("claireon.datatable_rename_row");
 }
 
 FString ClaireonTool_DataTableRenameRow::GetDescription() const

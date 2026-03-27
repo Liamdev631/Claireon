@@ -8,7 +8,7 @@
 
 FString ClaireonTool_ListSessions::GetName() const
 {
-	return TEXT("mcp_list_sessions");
+	return TEXT("claireon.session_list");
 }
 
 FString ClaireonTool_ListSessions::GetDescription() const

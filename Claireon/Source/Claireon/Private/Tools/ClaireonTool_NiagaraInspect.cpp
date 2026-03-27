@@ -14,12 +14,7 @@
 
 FString ClaireonTool_NiagaraInspect::GetName() const
 {
-	return TEXT("inspect_niagara");
-}
-
-FString ClaireonTool_NiagaraInspect::GetCategory() const
-{
-	return TEXT("niagara");
+	return TEXT("claireon.niagara_inspect");
 }
 
 FString ClaireonTool_NiagaraInspect::GetDescription() const

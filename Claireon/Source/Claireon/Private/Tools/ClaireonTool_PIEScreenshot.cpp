@@ -13,7 +13,7 @@
 
 FString ClaireonTool_PIEScreenshot::GetName() const
 {
-	return TEXT("pie_screenshot");
+	return TEXT("claireon.pie_screenshot");
 }
 
 FString ClaireonTool_PIEScreenshot::GetDescription() const

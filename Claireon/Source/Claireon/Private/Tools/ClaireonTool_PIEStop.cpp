@@ -12,7 +12,7 @@
 
 FString ClaireonTool_PIEStop::GetName() const
 {
-	return TEXT("pie_stop_async");
+	return TEXT("claireon.pie_stop_async");
 }
 
 FString ClaireonTool_PIEStop::GetDescription() const
