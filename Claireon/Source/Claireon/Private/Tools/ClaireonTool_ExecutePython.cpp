@@ -37,9 +37,9 @@ FString ClaireonTool_ExecutePython::GetName() const
 
 FString ClaireonTool_ExecutePython::GetDescription() const
 {
-	return TEXT("Execute Python code in Code Mode with access to the tools.* bridge. "
+	return TEXT("Execute Python code in Code Mode with access to the claireon.* bridge. "
 		"The code runs in the Unreal Editor's Python environment with the 'unreal' module "
-		"and all tools.* wrapper functions available for calling other MCP tools.");
+		"and all claireon.* wrapper functions available for calling other MCP tools.");
 }
 
 TSharedPtr<FJsonObject> ClaireonTool_ExecutePython::GetInputSchema() const
@@ -52,7 +52,7 @@ TSharedPtr<FJsonObject> ClaireonTool_ExecutePython::GetInputSchema() const
 	// code - required
 	TSharedPtr<FJsonObject> CodeProp = MakeShared<FJsonObject>();
 	CodeProp->SetStringField(TEXT("type"), TEXT("string"));
-	CodeProp->SetStringField(TEXT("description"), TEXT("Python code to execute. Has access to 'unreal' module and tools.* bridge functions."));
+	CodeProp->SetStringField(TEXT("description"), TEXT("Python code to execute. Has access to 'unreal' module and claireon.* bridge functions."));
 	Properties->SetObjectField(TEXT("code"), CodeProp);
 
 	// timeout_ms - optional
@@ -73,7 +73,7 @@ TSharedPtr<FJsonObject> ClaireonTool_ExecutePython::GetInputSchema() const
 
 FString ClaireonTool_ExecutePython::GetPythonPrefix()
 {
-	// Constant string — the tools namespace wrapper from 04-BRIDGE.md
+	// Constant string — the claireon.* namespace proxy
 	// Uses _json and _unreal prefixed imports to avoid colliding with user code
 	return TEXT(
 		"import json as _json\n"
@@ -82,9 +82,9 @@ FString ClaireonTool_ExecutePython::GetPythonPrefix()
 		"_warnings.filterwarnings('ignore', category=DeprecationWarning)\n"
 		"\n"
 		"class _MCPToolProxy:\n"
-		"    \"\"\"Callable proxy for a single tool that also supports further dotted access.\n"
-		"    tools.claireon returns _MCPToolProxy('claireon') — callable and supports .attr.\n"
-		"    tools.claireon.asset_search returns _MCPToolProxy('claireon.asset_search').\"\"\"\n"
+		"    \"\"\"Callable proxy that supports dotted access for tool dispatch.\n"
+		"    claireon.asset_search returns _MCPToolProxy('claireon.asset_search').\n"
+		"    claireon.asset_search() dispatches _mcp_call_tool('claireon.asset_search', ...).\"\"\"\n"
 		"    _schema_cache = {}\n"
 		"    def __init__(self, full_name):\n"
 		"        object.__setattr__(self, '_full_name', full_name)\n"
@@ -108,116 +108,56 @@ FString ClaireonTool_ExecutePython::GetPythonPrefix()
 		"    def __repr__(self):\n"
 		"        return f'<tool {self._full_name}>'\n"
 		"\n"
-		"class _MCPToolNamespace:\n"
-		"    \"\"\"Root namespace: tools.claireon.asset_search() dispatches _mcp_call_tool('claireon.asset_search', ...).\"\"\"\n"
-		"    def __getattr__(self, name):\n"
-		"        return _MCPToolProxy(name)\n"
+		"def _index_search(index_id, query='', max_results=5, method='hybrid'):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    _engine = _get_engine()\n"
+		"    _hits = _engine.search(index_id, query, max_results=max_results, method=method)\n"
+		"    return {'index_id': index_id, 'query': query, 'results': _hits}\n"
 		"\n"
-		"    def __dir__(self):\n"
-		"        \"\"\"Support tab-completion / introspection of available tools.\"\"\"\n"
-		"        return _json.loads(_unreal._mcp_call_tool(\"__list_tools__\", \"{}\"))\n"
+		"def _index_info(index_id):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return _get_engine().get_index_info(index_id)\n"
 		"\n"
-		"    def index_search(self, index_id, query='', max_results=5, method='hybrid'):\n"
-		"        \"\"\"Search a previously indexed large result by index_id.\n"
+		"def _index_list():\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return {'indexes': _get_engine().list_indexes()}\n"
 		"\n"
-		"        Args:\n"
-		"            index_id: The index_id returned in an indexed_result response.\n"
-		"            query: Search query string.\n"
-		"            max_results: Maximum number of chunks to return (default 5).\n"
-		"            method: 'keyword' (BM25), 'semantic' (vector KNN), or 'hybrid' (RRF fusion, default).\n"
+		"def _index_stats(index_id):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return _get_engine().stats(index_id)\n"
 		"\n"
-		"        Returns:\n"
-		"            dict with 'results' list and 'index_id'.\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        _engine = _get_engine()\n"
-		"        _hits = _engine.search(index_id, query, max_results=max_results, method=method)\n"
-		"        return {'index_id': index_id, 'query': query, 'results': _hits}\n"
+		"def _index_search_all(query='', max_results=10):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    _hits = _get_engine().search_all(query, max_results=max_results)\n"
+		"    return {'query': query, 'results': _hits}\n"
 		"\n"
-		"    def index_info(self, index_id):\n"
-		"        \"\"\"Return metadata for a stored index (chunk count, created_at, source_tool).\"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return _get_engine().get_index_info(index_id)\n"
+		"def _index_dump(index_id=None, name=None):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return _get_engine().dump(index_id=index_id, name=name)\n"
 		"\n"
-		"    def index_list(self):\n"
-		"        \"\"\"List all indexes currently held in the in-memory index engine.\"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return {'indexes': _get_engine().list_indexes()}\n"
+		"def _index_load(name):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return _get_engine().load(name)\n"
 		"\n"
-		"    def index_stats(self, index_id):\n"
-		"        \"\"\"Return detailed statistics for a stored index.\n"
+		"def _index_clear(index_id=None):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return _get_engine().clear(index_id=index_id)\n"
 		"\n"
-		"        Returns chunk_count, chunk_types breakdown, total_text_bytes,\n"
-		"        age_seconds, created_at, and last_accessed timestamp.\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return _get_engine().stats(index_id)\n"
-		"\n"
-		"    def index_search_all(self, query='', max_results=10):\n"
-		"        \"\"\"BM25 search across ALL indexes simultaneously.\n"
-		"\n"
-		"        Args:\n"
-		"            query: Keyword query string. Pass empty string for first-N chunks.\n"
-		"            max_results: Maximum number of chunks to return (default 10).\n"
-		"\n"
-		"        Returns:\n"
-		"            dict with 'results' list; each item includes 'index_id'.\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        _hits = _get_engine().search_all(query, max_results=max_results)\n"
-		"        return {'query': query, 'results': _hits}\n"
-		"\n"
-		"    def index_dump(self, index_id=None, name=None):\n"
-		"        \"\"\"Serialize the index engine to disk (Saved/MCPIndex/<name>.db).\n"
-		"\n"
-		"        Args:\n"
-		"            index_id: Optional index_id to document in the dump metadata.\n"
-		"            name: Optional filename stem (defaults to index_id or a timestamp).\n"
-		"\n"
-		"        Returns:\n"
-		"            dict with 'name' and 'path' of the written file.\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return _get_engine().dump(index_id=index_id, name=name)\n"
-		"\n"
-		"    def index_load(self, name):\n"
-		"        \"\"\"Restore an index from a dump file, merging with dedup.\n"
-		"\n"
-		"        Args:\n"
-		"            name: The filename stem passed to index_dump (without .db extension).\n"
-		"\n"
-		"        Returns:\n"
-		"            dict with merge statistics (chunks_inserted, chunks_reused).\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return _get_engine().load(name)\n"
-		"\n"
-		"    def index_clear(self, index_id=None):\n"
-		"        \"\"\"Clear one specific index or ALL indexes from the engine.\n"
-		"\n"
-		"        Args:\n"
-		"            index_id: The index to remove, or None to clear everything.\n"
-		"\n"
-		"        Returns:\n"
-		"            dict with removed_index_links and removed_orphan_chunks counts.\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return _get_engine().clear(index_id=index_id)\n"
-		"\n"
-		"    def index_expire(self, max_age_seconds=600.0):\n"
-		"        \"\"\"TTL-based cleanup: remove indexes older than max_age_seconds.\n"
-		"\n"
-		"        Args:\n"
-		"            max_age_seconds: Maximum age in seconds (default 600 = 10 minutes).\n"
-		"\n"
-		"        Returns:\n"
-		"            dict with expired_indexes list and chunk cleanup counts.\n"
-		"        \"\"\"\n"
-		"        from mcp_index_engine import get_engine as _get_engine\n"
-		"        return _get_engine().expire(max_age_seconds=max_age_seconds)\n"
+		"def _index_expire(max_age_seconds=600.0):\n"
+		"    from mcp_index_engine import get_engine as _get_engine\n"
+		"    return _get_engine().expire(max_age_seconds=max_age_seconds)\n"
 		"\n"
 		"import unreal\n"
-		"tools = _MCPToolNamespace()\n"
+		"claireon = _MCPToolProxy('claireon')\n"
+		"claireon.index_search = _index_search\n"
+		"claireon.index_info = _index_info\n"
+		"claireon.index_list = _index_list\n"
+		"claireon.index_stats = _index_stats\n"
+		"claireon.index_search_all = _index_search_all\n"
+		"claireon.index_dump = _index_dump\n"
+		"claireon.index_load = _index_load\n"
+		"claireon.index_clear = _index_clear\n"
+		"claireon.index_expire = _index_expire\n"
 		"result = None\n"
 		"\n"
 		"# --- user code begins here ---\n"
@@ -230,7 +170,7 @@ FString ClaireonTool_ExecutePython::GetPythonSuffix()
 	// rewritten) result back to C++ via the bridge.  When the result exceeds
 	// the threshold, the raw data is stored in the IndexEngine and a compact
 	// IndexedResult envelope is returned instead so the LLM can issue follow-up
-	// tools.index_search() calls without blowing its context window.
+	// claireon.index_search() calls without blowing its context window.
 	return TEXT(
 		"\n"
 		"# --- user code ends here ---\n"
@@ -263,7 +203,7 @@ FString ClaireonTool_ExecutePython::GetPythonSuffix()
 		"                    'chunk_count': _routed.chunk_count,\n"
 		"                    'summary': _routed.summary,\n"
 		"                    'excerpts': _routed.excerpts,\n"
-		"                    'hint': 'Use tools.index_search(index_id, query) to retrieve specific content.',\n"
+		"                    'hint': 'Use claireon.index_search(index_id, query) to retrieve specific content.',\n"
 		"                })\n"
 		"    except Exception as _gate_err:\n"
 		"        # Output gate failure must never silently swallow the result\n"
@@ -534,7 +474,7 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 					double ChunkCountDouble = 0.0;
 					ParsedObj->TryGetNumberField(TEXT("chunk_count"), ChunkCountDouble);
 					FinalResult.Summary = FString::Printf(
-						TEXT("Result indexed (%d chunks). Use tools.index_search(\"%s\", query) to retrieve content."),
+						TEXT("Result indexed (%d chunks). Use claireon.index_search(\"%s\", query) to retrieve content."),
 						static_cast<int32>(ChunkCountDouble), *IndexId);
 					bHandled = true;
 				}
