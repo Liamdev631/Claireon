@@ -111,6 +111,7 @@ IClaireonTool::FToolResult ClaireonTool_FormatBlueprintGraph::Execute(const TSha
 	FString FormatterUsed = TEXT("Blueprint Assist");
 #else
 	return MakeErrorResult(TEXT("Blueprint Assist is not available (WITH_BLUEPRINT_ASSIST=0). This tool requires the Blueprint Assist plugin."));
+	FString FormatterUsed = TEXT("None");  // unreachable, satisfies compiler
 #endif
 
 	// Mark Blueprint as modified and compile

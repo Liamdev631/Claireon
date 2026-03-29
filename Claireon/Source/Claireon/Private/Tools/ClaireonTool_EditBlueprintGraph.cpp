@@ -63,6 +63,20 @@
 #include "GameplayTagsManager.h"
 #include "ClaireonSessionManager.h"
 
+// UE 5.7 changed NodePosX/Y from float to int32, adding getter/setter accessors.
+// Use these compat macros so the code compiles on both 5.5 and 5.7+.
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7
+#define CLAIREON_GET_NODE_POS_X(Node) (Node)->GetNodePosX()
+#define CLAIREON_GET_NODE_POS_Y(Node) (Node)->GetNodePosY()
+#define CLAIREON_SET_NODE_POS_X(Node, Val) (Node)->SetNodePosX(Val)
+#define CLAIREON_SET_NODE_POS_Y(Node, Val) (Node)->SetNodePosY(Val)
+#else
+#define CLAIREON_GET_NODE_POS_X(Node) (Node)->NodePosX
+#define CLAIREON_GET_NODE_POS_Y(Node) (Node)->NodePosY
+#define CLAIREON_SET_NODE_POS_X(Node, Val) (Node)->NodePosX = (Val)
+#define CLAIREON_SET_NODE_POS_Y(Node, Val) (Node)->NodePosY = (Val)
+#endif
+
 #define LOCTEXT_NAMESPACE "ClaireonTool_EditBlueprintGraph"
 
 // Using statements
@@ -3441,7 +3455,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::BuildStateResponse(const FString& S
 					}
 				}
 
-				StatusText += FString::Printf(TEXT("Position: (%.0f, %.0f)\n"), FocusedNode->NodePosX, FocusedNode->NodePosY);
+				StatusText += FString::Printf(TEXT("Position: (%.0f, %.0f)\n"), CLAIREON_GET_NODE_POS_X(FocusedNode), CLAIREON_GET_NODE_POS_Y(FocusedNode));
 			}
 			else
 			{
@@ -3472,8 +3486,8 @@ FToolResult ClaireonTool_EditBlueprintGraph::BuildStateResponse(const FString& S
 			StatusText += FString::Printf(TEXT("%d. [%s] @ (%.0f, %.0f)%s\n"),
 				NodeIndex++,
 				*NodeTitle,
-				Node->NodePosX,
-				Node->NodePosY,
+				Node->GetNodePosX(),
+				Node->GetNodePosY(),
 				bIsCursor ? TEXT(" <<<CURSOR>>>") : TEXT(""));
 
 			// Show execution connections (simplified)

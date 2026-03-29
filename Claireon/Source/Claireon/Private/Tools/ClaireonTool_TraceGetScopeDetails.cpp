@@ -130,10 +130,9 @@ IClaireonTool::FToolResult ClaireonTool_TraceGetScopeDetails::Execute(const TSha
 				if (Frame) IntervalEnd = Frame->EndTime;
 			}
 
-			TraceServices::FCreateAggreationParams Params;
+			TraceServices::FCreateAggregationParams Params;
 			Params.IntervalStart = IntervalStart;
 			Params.IntervalEnd = IntervalEnd;
-			Params.IncludeGpu = false;
 			Params.CpuThreadFilter = [](uint32) -> bool { return true; };
 
 			TraceServices::ITable<TraceServices::FTimingProfilerAggregatedStats>* AggTable = TimingProvider->CreateAggregation(Params);

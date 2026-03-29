@@ -1610,7 +1610,11 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddPropertyFunction(const FStr
 	TargetPath.FromString(TargetProperty);
 
 	// Build source path segments
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7
+	TArray<FPropertyBindingPathSegment> SourceSegments;
+#else
 	TArray<FStateTreePropertyPathSegment> SourceSegments;
+#endif
 	if (!SourceProperty.IsEmpty())
 	{
 		FStateTreePropertyPath TempPath;
@@ -1629,7 +1633,11 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddPropertyFunction(const FStr
 			{
 				if (It->HasMetaData(TEXT("Category")) && It->GetMetaData(TEXT("Category")) == TEXT("Output"))
 				{
+#if ENGINE_MAJOR_VERSION == 5 && ENGINE_MINOR_VERSION >= 7
+					SourceSegments.Add(FPropertyBindingPathSegment(It->GetFName()));
+#else
 					SourceSegments.Add(FStateTreePropertyPathSegment(It->GetFName()));
+#endif
 					break;
 				}
 			}
