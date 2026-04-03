@@ -27,6 +27,11 @@
 static constexpr uint32 DefaultPort = 8017;
 static constexpr uint32 MaxPortRetries = 10;
 
+static const TSet<FString> MCPVisibleTools = {
+    TEXT("claireon.python_execute"),
+    TEXT("claireon.tools_search")
+};
+
 FOnClaireonServerStarted& FClaireonServer::OnServerStarted()
 {
 	static FOnClaireonServerStarted Delegate;
@@ -404,51 +409,35 @@ TSharedPtr<FJsonObject> FClaireonServer::HandleToolsList(const FMCPRequestContex
 {
 	TArray<TSharedPtr<FJsonValue>> ToolArray;
 
-	// Only expose 2 MCP-visible tools: claireon.python_execute and claireon.tools_search
-	// All other tools are accessible only via tools.claireon.* inside python_execute
-
-	// 1. Execute tool — with embedded type stubs for all registered tools
+	// Expose only MCPVisibleTools — all others are accessible via tools.claireon.* inside python_execute
+	for (const FString& VisibleToolName : MCPVisibleTools)
 	{
-		TSharedPtr<IClaireonTool>* ExecuteTool = Tools.Find(TEXT("claireon.python_execute"));
-		if (ExecuteTool && ExecuteTool->IsValid())
-		{
-			TSharedPtr<FJsonObject> ToolObj = MakeShared<FJsonObject>();
-			ToolObj->SetStringField(TEXT("name"), (*ExecuteTool)->GetName());
+		TSharedPtr<IClaireonTool>* Tool = Tools.Find(VisibleToolName);
+		if (!Tool || !Tool->IsValid()) continue;
 
-			// Build description with lightweight category summary
+		TSharedPtr<FJsonObject> ToolObj = MakeShared<FJsonObject>();
+		ToolObj->SetStringField(TEXT("name"), (*Tool)->GetName());
+
+		if (VisibleToolName == TEXT("claireon.python_execute"))
+		{
+			// Build description with lightweight category summary for the execute tool
 			FString CategorySummary = FClaireonXmlFormatter::GenerateCategorySummary(Tools);
 			FString Description = TEXT("Run Python code with tools.* namespace for Unreal Editor automation.\n\n");
 			Description += CategorySummary;
-
 			ToolObj->SetStringField(TEXT("description"), Description);
-
-			TSharedPtr<FJsonObject> InputSchema = (*ExecuteTool)->GetInputSchema();
-			if (InputSchema.IsValid())
-			{
-				ToolObj->SetObjectField(TEXT("inputSchema"), InputSchema);
-			}
-
-			ToolArray.Add(MakeShared<FJsonValueObject>(ToolObj));
 		}
-	}
-
-	// 2. Search tools — standard description
-	{
-		TSharedPtr<IClaireonTool>* SearchTool = Tools.Find(TEXT("claireon.tools_search"));
-		if (SearchTool && SearchTool->IsValid())
+		else
 		{
-			TSharedPtr<FJsonObject> ToolObj = MakeShared<FJsonObject>();
-			ToolObj->SetStringField(TEXT("name"), (*SearchTool)->GetName());
-			ToolObj->SetStringField(TEXT("description"), (*SearchTool)->GetDescription());
-
-			TSharedPtr<FJsonObject> InputSchema = (*SearchTool)->GetInputSchema();
-			if (InputSchema.IsValid())
-			{
-				ToolObj->SetObjectField(TEXT("inputSchema"), InputSchema);
-			}
-
-			ToolArray.Add(MakeShared<FJsonValueObject>(ToolObj));
+			ToolObj->SetStringField(TEXT("description"), (*Tool)->GetDescription());
 		}
+
+		TSharedPtr<FJsonObject> InputSchema = (*Tool)->GetInputSchema();
+		if (InputSchema.IsValid())
+		{
+			ToolObj->SetObjectField(TEXT("inputSchema"), InputSchema);
+		}
+
+		ToolArray.Add(MakeShared<FJsonValueObject>(ToolObj));
 	}
 
 	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
@@ -488,6 +477,14 @@ TSharedPtr<FJsonObject> FClaireonServer::HandleToolsCall(const FMCPRequestContex
 	{
 		return FMCPJsonRpcResponse::MakeError(Id, FMCPJsonRpcResponse::InvalidParams,
 			FString::Printf(TEXT("Unknown tool: %s"), *ToolName));
+	}
+
+	// Reject tools that are not MCP-visible (they must be called via python_execute)
+	if (!MCPVisibleTools.Contains(ToolName))
+	{
+		UE_LOG(LogClaireon, Warning, TEXT("[MCP] Rejected direct MCP call to non-visible tool: %s"), *ToolName);
+		return FMCPJsonRpcResponse::MakeError(Id, FMCPJsonRpcResponse::MethodNotFound,
+			FString::Printf(TEXT("Tool '%s' is not directly callable via MCP. Use tools.claireon.* inside python_execute."), *ToolName));
 	}
 
 	// Block asset-mutating tools while PIE is active
