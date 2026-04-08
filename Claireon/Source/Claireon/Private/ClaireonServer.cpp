@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "ClaireonServer.h"
+#include "ClaireonAutoSave.h"
 #include "ClaireonLog.h"
 #include "ClaireonBridge.h"
 #include "Tools/IClaireonTool.h"
@@ -607,6 +608,9 @@ TSharedPtr<FJsonObject> FClaireonServer::HandleToolsCall(const FMCPRequestContex
 	// hook, but MCP direct tool calls bypass Python entirely.
 	if (FClaireonBridge::HasDeferredActions())
 	{
+		// Auto-save before world-transition actions (map load, PIE, etc.)
+		FClaireonAutoSave::SaveIfNeeded(/*bIsPythonExecution=*/false);
+
 		TArray<FClaireonDeferredAction> Actions = FClaireonBridge::DrainDeferredActions();
 		for (const FClaireonDeferredAction& Action : Actions)
 		{

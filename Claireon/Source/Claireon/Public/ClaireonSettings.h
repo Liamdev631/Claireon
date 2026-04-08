@@ -168,6 +168,33 @@ public:
         meta=(DisplayName="Disabled PIE Net Modes"))
     TSet<FString> DisabledPIENetModes;
 
+    // --- Auto-Save ---
+
+    /** Master toggle for automatic pre-mutation saves.
+     *  When enabled, dirty packages are saved before crash-risk operations. */
+    UPROPERTY(Config, EditAnywhere, Category="Auto-Save",
+        meta=(DisplayName="Enable Auto-Save"))
+    bool bEnableAutoSave = true;
+
+    /** Save dirty packages before each Python execution. */
+    UPROPERTY(Config, EditAnywhere, Category="Auto-Save",
+        meta=(DisplayName="Auto-Save Before Python Execution",
+              EditCondition="bEnableAutoSave"))
+    bool bAutoSaveBeforePythonExecution = true;
+
+    /** Save dirty packages before deferred world-transition actions (map load, PIE start, etc.). */
+    UPROPERTY(Config, EditAnywhere, Category="Auto-Save",
+        meta=(DisplayName="Auto-Save Before Deferred Actions",
+              EditCondition="bEnableAutoSave"))
+    bool bAutoSaveBeforeDeferredActions = true;
+
+    /** Minimum seconds between auto-saves (debounce). Prevents save-spam during rapid tool calls. */
+    UPROPERTY(Config, EditAnywhere, Category="Auto-Save",
+        meta=(DisplayName="Auto-Save Debounce (seconds)",
+              EditCondition="bEnableAutoSave",
+              ClampMin=0.0, ClampMax=60.0))
+    float AutoSaveDebounceSeconds = 5.0f;
+
     // --- Debug ---
 
     /** Log all REPL tool calls (name, arguments, results) to the Unreal output log.

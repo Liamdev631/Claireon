@@ -8,6 +8,7 @@
 #include "Tools/ClaireonTool_LiveCodingReload.h"
 #include "Tools/ClaireonTool_MapDuplicate.h"
 #include "ClaireonBridge.h"
+#include "ClaireonAutoSave.h"
 #include "ClaireonLog.h"
 #include "ClaireonPythonAuditLog.h"
 #include "IPythonScriptPlugin.h"
@@ -317,6 +318,9 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 			FString::Printf(TEXT("Failed to write temp Python file: %s. Check disk space and file permissions."), *TempFilePath));
 	}
 
+	// Step 4b: Auto-save dirty packages before crash-risk Python execution
+	FClaireonAutoSave::SaveIfNeeded(/*bIsPythonExecution=*/true);
+
 	// Step 5: Construct FPythonCommandEx — use ExecuteFile (matches original editor.python.execute)
 	FPythonCommandEx PythonCommand;
 	PythonCommand.Command = TempFilePath;
@@ -338,9 +342,12 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 
 	// Step 7b: Dispatch any deferred world-transition actions.
 	// The barrier runs inside each deferred action's lambda (right before the
-	// world transition), not here — no reason to purge Python state early.
+	// world transition), not here -- no reason to purge Python state early.
 	if (FClaireonBridge::HasDeferredActions())
 	{
+		// Auto-save before world-transition actions (map load, PIE, etc.)
+		FClaireonAutoSave::SaveIfNeeded(/*bIsPythonExecution=*/false);
+
 		TArray<FClaireonDeferredAction> Actions = FClaireonBridge::DrainDeferredActions();
 		for (const FClaireonDeferredAction& Action : Actions)
 		{
@@ -371,6 +378,18 @@ IClaireonTool::FToolResult ClaireonTool_ExecutePython::Execute(const TSharedPtr<
 	// Step 9: Read result
 	FString ResultJson = FClaireonBridge::GetLastExecuteResult();
 	int32 ToolCallCount = FClaireonBridge::GetToolCallCount();
+
+	// Step 9b: Update crash flag based on execution outcome.
+	// Bridge-level failure (no result at all) suggests corrupted interpreter state.
+	// User code exceptions caught by try-except are NOT bridge failures.
+	if (!bPythonSuccess && ResultJson.IsEmpty())
+	{
+		FClaireonAutoSave::SetCrashFlag();
+	}
+	else
+	{
+		FClaireonAutoSave::ClearCrashFlag();
+	}
 
 	// Clean up temp file
 	IFileManager::Get().Delete(*TempFilePath);
