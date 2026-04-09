@@ -92,6 +92,7 @@
 
 // Blueprint CDO tools
 #include "Tools/ClaireonTool_SetBlueprintCDOProperty.h"
+#include "Tools/ClaireonTool_SetBlueprintMetadata.h"
 
 // Meta tools
 #include "Tools/ClaireonTool_SearchTools.h"
@@ -285,6 +286,7 @@ TArray<TSharedPtr<IClaireonTool>> FClaireonBuiltinToolProvider::GetTools() const
 
 	// Blueprint CDO tools
 	Tools.Add(MakeShared<ClaireonTool_SetBlueprintCDOProperty>());
+	Tools.Add(MakeShared<ClaireonTool_SetBlueprintMetadata>());
 
 	// Meta tools
 	Tools.Add(MakeShared<ClaireonTool_SearchTools>());

@@ -214,6 +214,43 @@ IClaireonTool::FToolResult ClaireonTool_GetBlueprintProperties::Execute(const TS
 	Data->SetArrayField(TEXT("components"), ComponentsArray);
 	Data->SetArrayField(TEXT("interfaces"), InterfacesArray);
 
+	// Build metadata object (UBlueprint-level properties, not CDO)
+	TSharedPtr<FJsonObject> MetadataObj = MakeShared<FJsonObject>();
+	MetadataObj->SetStringField(TEXT("namespace"), Blueprint->BlueprintNamespace);
+	MetadataObj->SetStringField(TEXT("display_name"), Blueprint->BlueprintDisplayName);
+	MetadataObj->SetStringField(TEXT("description"), Blueprint->BlueprintDescription);
+	MetadataObj->SetStringField(TEXT("category"), Blueprint->BlueprintCategory);
+
+	// hide_categories as JSON array
+	TArray<TSharedPtr<FJsonValue>> HideCategoriesArray;
+	for (const FString& Cat : Blueprint->HideCategories)
+	{
+		HideCategoriesArray.Add(MakeShared<FJsonValueString>(Cat));
+	}
+	MetadataObj->SetArrayField(TEXT("hide_categories"), HideCategoriesArray);
+
+	MetadataObj->SetBoolField(TEXT("is_abstract"), Blueprint->bGenerateAbstractClass != 0);
+	MetadataObj->SetBoolField(TEXT("is_const"), Blueprint->bGenerateConstClass != 0);
+	MetadataObj->SetBoolField(TEXT("is_deprecated"), Blueprint->bDeprecate != 0);
+
+	// CompileMode enum to string
+	FString CompileModeStr = TEXT("Default");
+	if (const UEnum* CompileModeEnum = StaticEnum<EBlueprintCompileMode>())
+	{
+		CompileModeStr = CompileModeEnum->GetNameStringByValue(static_cast<int64>(Blueprint->CompileMode));
+	}
+	MetadataObj->SetStringField(TEXT("compile_mode"), CompileModeStr);
+
+	// num_replicated_properties from BlueprintGeneratedClass (read-only)
+	int32 NumReplicatedProps = 0;
+	if (UBlueprintGeneratedClass* BPGC = Cast<UBlueprintGeneratedClass>(Blueprint->GeneratedClass))
+	{
+		NumReplicatedProps = BPGC->NumReplicatedProperties;
+	}
+	MetadataObj->SetNumberField(TEXT("num_replicated_properties"), NumReplicatedProps);
+
+	Data->SetObjectField(TEXT("metadata"), MetadataObj);
+
 	// Extract asset name for summary
 	FString AssetName = FPaths::GetBaseFilename(AssetPath);
 	FString Summary = FString::Printf(TEXT("%s: %d variables, %d functions, %d components (parent: %s)"),
