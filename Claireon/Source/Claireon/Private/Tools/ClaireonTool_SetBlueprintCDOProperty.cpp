@@ -2,16 +2,14 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_SetBlueprintCDOProperty.h"
-#include "ClaireonLog.h"
 #include "ClaireonBlueprintHelpers.h"
+#include "Tools/ClaireonPropertyResolver.h"
 #include "Engine/Blueprint.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "ScopedTransaction.h"
 #include "UObject/UnrealType.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
 
 FString ClaireonTool_SetBlueprintCDOProperty::GetName() const
 {
@@ -28,7 +26,8 @@ FString ClaireonTool_SetBlueprintCDOProperty::GetDescription() const
 	return TEXT("Set a property on a Blueprint's Class Default Object (CDO) by asset path. "
 		"Supports all property types via ImportText serialization including TSoftClassPtr. "
 		"Sessionless alternative to edit_blueprint_graph for simple property changes. "
-		"Does not support array indexing or component properties.");
+		"Supports component template properties via automatic SCS component lookup. "
+		"Does not support array indexing.");
 }
 
 TSharedPtr<FJsonObject> ClaireonTool_SetBlueprintCDOProperty::GetInputSchema() const
@@ -128,6 +127,10 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintCDOProperty::Execute(const T
 	// Step 5: Resolve property
 	FProperty* Property = nullptr;
 	void* Container = nullptr;
+	FString ResolvedOn_ForResult;
+	FString ResolvedNote_ForResult;
+	bool bResolvedOnComponent = false;
+	UObject* ResolvedTargetObject = nullptr;
 
 	if (!PropertyPath.IsEmpty())
 	{
@@ -170,18 +173,34 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintCDOProperty::Execute(const T
 				CurrentStruct = StructProp->Struct;
 			}
 		}
+		ResolvedOn_ForResult = TEXT("CDO");
 	}
 	else
 	{
-		// Flat lookup on CDO class
-		Property = CDO->GetClass()->FindPropertyByName(FName(*PropertyName));
+		// Component-aware lookup on CDO + SCS component templates
+		ClaireonPropertyResolver::FResolvedProperty Resolved;
+		FString ResolveError;
+		if (!ClaireonPropertyResolver::ResolvePropertyOnBlueprintCDO(Blueprint, PropertyName, Resolved, ResolveError))
+		{
+			return MakeErrorResult(ResolveError);
+		}
+
+		// Find the actual FProperty* on the resolved target object
+		Property = Resolved.TargetObject->GetClass()->FindPropertyByName(FName(*PropertyName));
 		if (!Property)
 		{
+			// This should not happen since ResolvePropertyOnBlueprintCDO found it, but guard anyway
 			return MakeErrorResult(FString::Printf(
-				TEXT("Property '%s' not found on CDO of class '%s'"),
-				*PropertyName, *CDO->GetClass()->GetName()));
+				TEXT("Internal error: resolver found '%s' on '%s' but FindPropertyByName failed"),
+				*PropertyName, *Resolved.ResolvedOn));
 		}
-		Container = CDO;
+		Container = Resolved.TargetObject;
+
+		// Store resolution metadata for the result JSON
+		ResolvedOn_ForResult = Resolved.ResolvedOn;
+		ResolvedNote_ForResult = Resolved.Note;
+		bResolvedOnComponent = (Resolved.TargetObject != CDO);
+		ResolvedTargetObject = Resolved.TargetObject;
 	}
 
 	// Step 6: Export old value
@@ -192,6 +211,11 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintCDOProperty::Execute(const T
 	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blueprint CDO Property")));
 	Blueprint->Modify();
 	CDO->Modify();
+	// When the property lives on a component template, also Modify() the component template
+	if (bResolvedOnComponent && ResolvedTargetObject)
+	{
+		ResolvedTargetObject->Modify();
+	}
 
 	// Step 8: ImportText_Direct -- check return value for nullptr
 	const TCHAR* Result = Property->ImportText_Direct(*Value, Property->ContainerPtrToValuePtr<void>(Container), CDO, PPF_None);
@@ -211,6 +235,14 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintCDOProperty::Execute(const T
 	Data->SetStringField(TEXT("old_value"), OldValue);
 	Data->SetStringField(TEXT("new_value"), Value);
 	Data->SetStringField(TEXT("asset_path"), AssetPath);
+	if (!ResolvedOn_ForResult.IsEmpty())
+	{
+		Data->SetStringField(TEXT("resolved_on"), ResolvedOn_ForResult);
+	}
+	if (!ResolvedNote_ForResult.IsEmpty())
+	{
+		Data->SetStringField(TEXT("note"), ResolvedNote_ForResult);
+	}
 
 	FString Summary = FString::Printf(TEXT("Set %s.%s = '%s' (was '%s')"), *AssetPath, *PropertyName, *Value, *OldValue);
 	return MakeSuccessResult(Data, Summary);

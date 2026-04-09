@@ -3,6 +3,7 @@
 
 #include "Tools/ClaireonTool_PlaceActor.h"
 #include "ClaireonLog.h"
+#include "Tools/ClaireonPropertyResolver.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Dom/JsonObject.h"
@@ -14,9 +15,6 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "ScopedTransaction.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
-#include "UObject/UnrealType.h"
 #include "UObject/UObjectGlobals.h"
 
 using FToolResult = IClaireonTool::FToolResult;
@@ -365,48 +363,34 @@ FToolResult ClaireonTool_PlaceActor::Execute(const TSharedPtr<FJsonObject>& Argu
 			SpawnedActor->SetActorLabel(Label, /*bMarkDirty=*/true);
 		}
 
-		// Apply optional properties via ImportText_Direct
+		// Apply optional properties via resolver (component-aware)
 		const TSharedPtr<FJsonObject>* PropertiesObj = nullptr;
 		if (Spec->TryGetObjectField(TEXT("properties"), PropertiesObj) && PropertiesObj)
 		{
 			for (const auto& Pair : (*PropertiesObj)->Values)
 			{
-				FProperty* Property = SpawnedActor->GetClass()->FindPropertyByName(FName(*Pair.Key));
-				if (Property)
+				// Coerce JSON value to string (caller responsibility per M4)
+				FString ValueStr;
+				if (!Pair.Value->TryGetString(ValueStr))
 				{
-					FString ValueStr;
-					if (Pair.Value->TryGetString(ValueStr))
+					double NumVal;
+					bool BoolVal;
+					if (Pair.Value->TryGetNumber(NumVal))
 					{
-						const TCHAR* ImportResult = Property->ImportText_Direct(*ValueStr, Property->ContainerPtrToValuePtr<void>(SpawnedActor), SpawnedActor, PPF_None);
-						if (!ImportResult)
-						{
-							UE_LOG(LogClaireon, Warning, TEXT("[place_actor] ImportText_Direct failed for property '%s' with value '%s'"), *Pair.Key, *ValueStr);
-						}
+						ValueStr = FString::SanitizeFloat(NumVal);
 					}
-					else
+					else if (Pair.Value->TryGetBool(BoolVal))
 					{
-						// For non-string values, serialize to string first
-						double NumVal;
-						bool BoolVal;
-						if (Pair.Value->TryGetNumber(NumVal))
-						{
-							ValueStr = FString::SanitizeFloat(NumVal);
-							const TCHAR* ImportResult = Property->ImportText_Direct(*ValueStr, Property->ContainerPtrToValuePtr<void>(SpawnedActor), SpawnedActor, PPF_None);
-							if (!ImportResult)
-							{
-								UE_LOG(LogClaireon, Warning, TEXT("[place_actor] ImportText_Direct failed for property '%s' with value '%s'"), *Pair.Key, *ValueStr);
-							}
-						}
-						else if (Pair.Value->TryGetBool(BoolVal))
-						{
-							ValueStr = BoolVal ? TEXT("True") : TEXT("False");
-							const TCHAR* ImportResult = Property->ImportText_Direct(*ValueStr, Property->ContainerPtrToValuePtr<void>(SpawnedActor), SpawnedActor, PPF_None);
-							if (!ImportResult)
-							{
-								UE_LOG(LogClaireon, Warning, TEXT("[place_actor] ImportText_Direct failed for property '%s' with value '%s'"), *Pair.Key, *ValueStr);
-							}
-						}
+						ValueStr = BoolVal ? TEXT("True") : TEXT("False");
 					}
+				}
+
+				ClaireonPropertyResolver::FResolvedProperty Resolved;
+				FString WriteError;
+				bool bOk = ClaireonPropertyResolver::WritePropertyOnActor(SpawnedActor, Pair.Key, ValueStr, Resolved, WriteError);
+				if (!bOk)
+				{
+					UE_LOG(LogClaireon, Warning, TEXT("[place_actor] %s"), *WriteError);
 				}
 			}
 		}

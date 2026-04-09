@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_LevelSetActorProperty.h"
-#include "ClaireonLog.h"
+#include "Tools/ClaireonPropertyResolver.h"
 
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -11,10 +11,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
 #include "ScopedTransaction.h"
-#include "Serialization/JsonSerializer.h"
-#include "Serialization/JsonWriter.h"
 #include "UObject/Package.h"
-#include "UObject/UnrealType.h"
 
 using FToolResult = IClaireonTool::FToolResult;
 
@@ -191,33 +188,42 @@ FToolResult ClaireonTool_LevelSetActorProperty::Execute(const TSharedPtr<FJsonOb
 			continue;
 		}
 
-		// Get current value as string
+		// Read old value via resolver (component-aware)
 		FString OldValue;
-		FProperty* Property = TargetActor->GetClass()->FindPropertyByName(FName(*PropName));
-		if (Property)
 		{
-			Property->ExportTextItem_Direct(OldValue, Property->ContainerPtrToValuePtr<void>(TargetActor), nullptr, nullptr, PPF_None);
+			ClaireonPropertyResolver::FResolvedProperty ReadResolved;
+			FString ReadError;
+			OldValue = ClaireonPropertyResolver::ReadPropertyOnActor(TargetActor, PropName, ReadResolved, ReadError);
+			// If read fails (property not found), OldValue is empty -- that's OK, we still attempt the write
 		}
 
-		// Set new value
+		// Extract new value from JSON
 		FString NewValueStr;
-		const TSharedPtr<FJsonObject>* NewValueObj = nullptr;
+		(*PropObj)->TryGetStringField(TEXT("value"), NewValueStr);
 
-		bool bSetOk = false;
-		if ((*PropObj)->TryGetStringField(TEXT("value"), NewValueStr))
-		{
-			if (Property)
-			{
-				Property->ImportText_Direct(*NewValueStr, Property->ContainerPtrToValuePtr<void>(TargetActor), TargetActor, PPF_None);
-				bSetOk = true;
-			}
-		}
+		// Write new value via resolver (component-aware, handles Modify() on component)
+		ClaireonPropertyResolver::FResolvedProperty WriteResolved;
+		FString WriteError;
+		bool bSetOk = ClaireonPropertyResolver::WritePropertyOnActor(TargetActor, PropName, NewValueStr, WriteResolved, WriteError);
 
 		TSharedPtr<FJsonObject> DetailObj = MakeShared<FJsonObject>();
 		DetailObj->SetStringField(TEXT("property_name"), PropName);
 		DetailObj->SetStringField(TEXT("old_value"), OldValue);
 		DetailObj->SetStringField(TEXT("new_value"), NewValueStr);
 		DetailObj->SetBoolField(TEXT("success"), bSetOk);
+		if (bSetOk)
+		{
+			DetailObj->SetStringField(TEXT("resolved_on"), WriteResolved.ResolvedOn);
+			DetailObj->SetStringField(TEXT("qualified_path"), WriteResolved.QualifiedPath);
+			if (!WriteResolved.Note.IsEmpty())
+			{
+				DetailObj->SetStringField(TEXT("note"), WriteResolved.Note);
+			}
+		}
+		else
+		{
+			DetailObj->SetStringField(TEXT("error"), WriteError);
+		}
 		ResultDetails.Add(MakeShared<FJsonValueObject>(DetailObj));
 
 		if (bSetOk)

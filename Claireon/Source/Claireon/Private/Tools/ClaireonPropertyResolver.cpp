@@ -1,0 +1,266 @@
+// Copyright (c) 2026 The Claireon Contributors
+// SPDX-License-Identifier: MIT
+
+#include "Tools/ClaireonPropertyResolver.h"
+#include "Tools/ClaireonPropertyUtils.h"
+#include "GameFramework/Actor.h"
+#include "Components/ActorComponent.h"
+#include "Engine/SCS_Node.h"
+#include "Engine/SimpleConstructionScript.h"
+#include "Engine/Blueprint.h"
+
+bool ClaireonPropertyResolver::ResolvePropertyOnActor(
+	AActor* Actor,
+	const FString& PropertyPath,
+	FResolvedProperty& OutResolved,
+	FString& OutError)
+{
+	// Step 1: Null check + parse the first path segment
+	if (!Actor)
+	{
+		OutError = TEXT("Null actor");
+		return false;
+	}
+
+	FString FirstSegment;
+	FString Remainder;
+	if (!PropertyPath.Split(TEXT("."), &FirstSegment, &Remainder))
+	{
+		FirstSegment = PropertyPath;
+		Remainder = FString();
+	}
+
+	// Step 2: Check if first segment is a component name
+	TArray<UActorComponent*> AllComponents;
+	Actor->GetComponents(AllComponents);
+
+	for (UActorComponent* Component : AllComponents)
+	{
+		if (!Component)
+		{
+			continue;
+		}
+		if (Component->GetName() == FirstSegment)
+		{
+			if (Remainder.IsEmpty())
+			{
+				OutError = FString::Printf(TEXT("'%s' is a component name, not a property. Use 'ComponentName.PropertyName' syntax."), *FirstSegment);
+				return false;
+			}
+
+			// Verify the first segment of Remainder exists as a property on the component
+			FString RemainderFirst;
+			FString RemainderRest;
+			if (!Remainder.Split(TEXT("."), &RemainderFirst, &RemainderRest))
+			{
+				RemainderFirst = Remainder;
+			}
+			if (Component->GetClass()->FindPropertyByName(FName(*RemainderFirst)))
+			{
+				OutResolved.TargetObject = Component;
+				OutResolved.ResolvedOn = Component->GetName();
+				OutResolved.RemainingPath = Remainder;
+				OutResolved.QualifiedPath = PropertyPath;
+				OutResolved.Note = TEXT("Resolved via explicit component name prefix");
+				return true;
+			}
+		}
+	}
+
+	// Step 3: Check actor root
+	if (Actor->GetClass()->FindPropertyByName(FName(*FirstSegment)))
+	{
+		OutResolved.TargetObject = Actor;
+		OutResolved.ResolvedOn = TEXT("Actor");
+		OutResolved.RemainingPath = PropertyPath;
+		OutResolved.QualifiedPath = PropertyPath;
+		OutResolved.Note = FString();
+		return true;
+	}
+
+	// Step 4: Check RootComponent
+	USceneComponent* RootComp = Actor->GetRootComponent();
+	if (RootComp && RootComp->GetClass()->FindPropertyByName(FName(*FirstSegment)))
+	{
+		OutResolved.TargetObject = RootComp;
+		OutResolved.ResolvedOn = TEXT("RootComponent");
+		OutResolved.RemainingPath = PropertyPath;
+		OutResolved.QualifiedPath = RootComp->GetName() + TEXT(".") + PropertyPath;
+		OutResolved.Note = TEXT("Property not found on actor root; found on RootComponent");
+		return true;
+	}
+
+	// Step 5: Iterate all components (excluding RootComponent, already checked)
+	for (UActorComponent* Component : AllComponents)
+	{
+		if (!Component || Component == RootComp)
+		{
+			continue;
+		}
+		if (Component->GetClass()->FindPropertyByName(FName(*FirstSegment)))
+		{
+			OutResolved.TargetObject = Component;
+			OutResolved.ResolvedOn = Component->GetName();
+			OutResolved.RemainingPath = PropertyPath;
+			OutResolved.QualifiedPath = Component->GetName() + TEXT(".") + PropertyPath;
+			OutResolved.Note = FString::Printf(TEXT("Property not found on actor root; found on component '%s'"), *Component->GetName());
+			return true;
+		}
+	}
+
+	// Step 6: Not found -- build descriptive error
+	OutError = FString::Printf(TEXT("Property '%s' not found. Searched: %s (actor root)"), *FirstSegment, *Actor->GetClass()->GetName());
+	if (RootComp)
+	{
+		OutError += FString::Printf(TEXT(", %s (RootComponent)"), *RootComp->GetClass()->GetName());
+	}
+	for (UActorComponent* Component : AllComponents)
+	{
+		if (!Component || Component == RootComp)
+		{
+			continue;
+		}
+		OutError += FString::Printf(TEXT(", %s (%s)"), *Component->GetClass()->GetName(), *Component->GetName());
+	}
+	return false;
+}
+
+FString ClaireonPropertyResolver::ReadPropertyOnActor(
+	AActor* Actor,
+	const FString& PropertyPath,
+	FResolvedProperty& OutResolved,
+	FString& OutError)
+{
+	if (!ResolvePropertyOnActor(Actor, PropertyPath, OutResolved, OutError))
+	{
+		return FString();
+	}
+	return ClaireonPropertyUtils::ReadPropertyByPath(OutResolved.TargetObject, OutResolved.RemainingPath, OutError);
+}
+
+bool ClaireonPropertyResolver::WritePropertyOnActor(
+	AActor* Actor,
+	const FString& PropertyPath,
+	const FString& Value,
+	FResolvedProperty& OutResolved,
+	FString& OutError)
+{
+	if (!ResolvePropertyOnActor(Actor, PropertyPath, OutResolved, OutError))
+	{
+		return false;
+	}
+	// When the resolved target is a component (not the actor itself), call Modify()
+	// on the component so the undo system captures its pre-modification state.
+	// The caller is expected to have already called Actor->Modify() within a FScopedTransaction.
+	if (OutResolved.TargetObject != Actor)
+	{
+		OutResolved.TargetObject->Modify();
+	}
+	return ClaireonPropertyUtils::WritePropertyByPath(OutResolved.TargetObject, OutResolved.RemainingPath, Value, OutError);
+}
+
+bool ClaireonPropertyResolver::ResolvePropertyOnBlueprintCDO(
+	UBlueprint* Blueprint,
+	const FString& PropertyPath,
+	FResolvedProperty& OutResolved,
+	FString& OutError)
+{
+	// Step 1: Validate inputs and get CDO
+	if (!Blueprint)
+	{
+		OutError = TEXT("Null Blueprint");
+		return false;
+	}
+	if (!Blueprint->GeneratedClass)
+	{
+		OutError = TEXT("Blueprint has no GeneratedClass");
+		return false;
+	}
+	UObject* CDO = Blueprint->GeneratedClass->GetDefaultObject();
+	if (!CDO)
+	{
+		OutError = TEXT("Failed to get CDO");
+		return false;
+	}
+
+	// Step 2: Parse first segment and check for SCS component name prefix
+	FString FirstSegment;
+	FString Remainder;
+	if (!PropertyPath.Split(TEXT("."), &FirstSegment, &Remainder))
+	{
+		FirstSegment = PropertyPath;
+		Remainder = FString();
+	}
+
+	if (Blueprint->SimpleConstructionScript)
+	{
+		for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+		{
+			if (!Node || !Node->ComponentTemplate)
+			{
+				continue;
+			}
+			if (Node->GetVariableName().ToString() == FirstSegment)
+			{
+				if (Remainder.IsEmpty())
+				{
+					OutError = FString::Printf(TEXT("'%s' is a component name, not a property. Use 'ComponentName.PropertyName' syntax."), *FirstSegment);
+					return false;
+				}
+				OutResolved.TargetObject = Node->ComponentTemplate;
+				OutResolved.ResolvedOn = Node->GetVariableName().ToString();
+				OutResolved.RemainingPath = Remainder;
+				OutResolved.QualifiedPath = PropertyPath;
+				OutResolved.Note = TEXT("Resolved via explicit SCS component name prefix");
+				return true;
+			}
+		}
+	}
+
+	// Step 3: Check CDO class
+	if (CDO->GetClass()->FindPropertyByName(FName(*FirstSegment)))
+	{
+		OutResolved.TargetObject = CDO;
+		OutResolved.ResolvedOn = TEXT("CDO");
+		OutResolved.RemainingPath = PropertyPath;
+		OutResolved.QualifiedPath = PropertyPath;
+		OutResolved.Note = FString();
+		return true;
+	}
+
+	// Step 4: Check SCS component templates
+	if (Blueprint->SimpleConstructionScript)
+	{
+		for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+		{
+			if (!Node || !Node->ComponentTemplate)
+			{
+				continue;
+			}
+			if (Node->ComponentTemplate->GetClass()->FindPropertyByName(FName(*FirstSegment)))
+			{
+				OutResolved.TargetObject = Node->ComponentTemplate;
+				OutResolved.ResolvedOn = Node->GetVariableName().ToString();
+				OutResolved.RemainingPath = PropertyPath;
+				OutResolved.QualifiedPath = Node->GetVariableName().ToString() + TEXT(".") + PropertyPath;
+				OutResolved.Note = FString::Printf(TEXT("Property not found on CDO; found on component template '%s'"), *Node->GetVariableName().ToString());
+				return true;
+			}
+		}
+	}
+
+	// Step 5: Not found -- build descriptive error
+	OutError = FString::Printf(TEXT("Property '%s' not found. Searched: %s (CDO)"), *FirstSegment, *CDO->GetClass()->GetName());
+	if (Blueprint->SimpleConstructionScript)
+	{
+		for (USCS_Node* Node : Blueprint->SimpleConstructionScript->GetAllNodes())
+		{
+			if (!Node || !Node->ComponentTemplate)
+			{
+				continue;
+			}
+			OutError += FString::Printf(TEXT(", %s (%s)"), *Node->ComponentTemplate->GetClass()->GetName(), *Node->GetVariableName().ToString());
+		}
+	}
+	return false;
+}
