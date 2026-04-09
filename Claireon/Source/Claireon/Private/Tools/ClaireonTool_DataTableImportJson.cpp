@@ -7,6 +7,7 @@
 #include "Engine/DataTable.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableImportJson::GetName() const
 {
@@ -73,6 +74,8 @@ IClaireonTool::FToolResult ClaireonTool_DataTableImportJson::Execute(const TShar
 		return MakeErrorResult(Error);
 	}
 
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Import DataTable JSON")));
+	Table->Modify();
 	TArray<FString> Problems = Table->CreateTableFromJSONString(JsonInput);
 
 	int32 RowCount = Table->GetRowMap().Num();

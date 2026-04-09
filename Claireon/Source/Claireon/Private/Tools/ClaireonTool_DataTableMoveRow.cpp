@@ -8,6 +8,7 @@
 #include "DataTableEditorUtils.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableMoveRow::GetName() const
 {
@@ -124,6 +125,7 @@ IClaireonTool::FToolResult ClaireonTool_DataTableMoveRow::Execute(const TSharedP
 		: FDataTableEditorUtils::ERowMoveDirection::Down;
 
 	// 5. Move the row
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] DataTable Move Row")));
 	bool bMoved = FDataTableEditorUtils::MoveRow(Table, RowFName, MoveDirection, Count);
 	if (!bMoved)
 	{

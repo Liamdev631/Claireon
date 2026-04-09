@@ -416,7 +416,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_AddOption(const FString& SessionId, 
 
 	UEnvQuery* Query = Data->Query.Get();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add EQS Option")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add EQS Option")));
 	Query->Modify();
 
 	UEnvQueryOption* NewOption = NewObject<UEnvQueryOption>(Query);
@@ -445,7 +445,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_RemoveOption(const FString& SessionI
 		return MakeErrorResult(FString::Printf(TEXT("Option index %d out of range (0-%d)"), OptionIndex, Query->GetOptions().Num() - 1));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove EQS Option")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove EQS Option")));
 	Query->Modify();
 
 	GetOptionsMutable(Query).RemoveAt(OptionIndex);
@@ -483,7 +483,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_SetGenerator(const FString& SessionI
 		return MakeErrorResult(Error);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set EQS Generator")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set EQS Generator")));
 	Query->Modify();
 
 	UEnvQueryOption* Option = GetOptionsMutable(Query)[OptionIndex];
@@ -527,7 +527,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_AddTest(const FString& SessionId, FE
 		return MakeErrorResult(Error);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add EQS Test")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add EQS Test")));
 	Query->Modify();
 
 	UEnvQueryOption* Option = GetOptionsMutable(Query)[OptionIndex];
@@ -568,7 +568,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_RemoveTest(const FString& SessionId,
 		return MakeErrorResult(FString::Printf(TEXT("Test index %d out of range for option %d (0-%d)"), TestIndex, OptionIndex, Option->Tests.Num() - 1));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove EQS Test")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove EQS Test")));
 	Query->Modify();
 
 	Option->Tests.RemoveAt(TestIndex);
@@ -617,7 +617,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_ReorderTests(const FString& SessionI
 		return MakeErrorResult(FString::Printf(TEXT("New index %d out of range"), NewIndex));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Reorder EQS Tests")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Reorder EQS Tests")));
 	Query->Modify();
 
 	UEnvQueryTest* TestToMove = Option->Tests[TestIndex];
@@ -669,7 +669,7 @@ FToolResult ClaireonTool_EQSEdit::Operation_SetNodeProperty(const FString& Sessi
 
 	UEnvQueryOption* Option = GetOptionsMutable(Query)[OptionIndex];
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set EQS Node Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set EQS Node Property")));
 	Query->Modify();
 
 	FString Error;

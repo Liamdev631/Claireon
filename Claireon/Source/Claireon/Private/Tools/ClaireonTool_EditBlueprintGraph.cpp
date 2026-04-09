@@ -855,7 +855,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_AddNode(const FString& Se
 	Params->TryGetBoolField(TEXT("auto_connect_from_cursor"), bAutoConnect);
 
 	// Create node using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPAddNode", "MCP Add Node"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Blueprint Node")));
 	Blueprint->Modify();
 	Graph->Modify();
 
@@ -2013,7 +2013,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_RemoveNode(const FString&
 	}
 
 	// Remove the node using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPRemoveNode", "MCP Remove Node"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Blueprint Node")));
 	Blueprint->Modify();
 	Graph->Modify();
 
@@ -2208,7 +2208,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_ConnectPins(const FString
 	}
 
 	// Make the connection using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPConnectPins", "MCP Connect Pins"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Connect Blueprint Pins")));
 	Blueprint->Modify();
 	Graph->Modify();
 
@@ -2318,7 +2318,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_DisconnectPin(const FStri
 	}
 
 	// Break connections using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPDisconnectPin", "MCP Disconnect Pin"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Disconnect Blueprint Pin")));
 	Blueprint->Modify();
 	Graph->Modify();
 
@@ -2404,7 +2404,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_SetPinValue(const FString
 	}
 
 	// Set the default value using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPSetPinValue", "MCP Set Pin Value"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blueprint Pin Value")));
 	Blueprint->Modify();
 	Graph->Modify();
 	Node->Modify();
@@ -2475,7 +2475,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_AddVariable(const FString
 	}
 
 	// Create variable using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPAddVariable", "MCP Add Variable"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Blueprint Variable")));
 	Blueprint->Modify();
 
 	// Create new variable
@@ -2574,7 +2574,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_AddComponent(const FStrin
 	}
 
 	// Create component using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPAddComponent", "MCP Add Component"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Blueprint Component")));
 	Blueprint->Modify();
 	SCS->Modify();
 
@@ -2687,7 +2687,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_SetProperty(const FString
 	}
 
 	// Set property using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPSetProperty", "MCP Set Property"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blueprint Property")));
 	Blueprint->Modify();
 	TargetObject->Modify();
 
@@ -3201,7 +3201,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_ImportNodes(const FString
 	}
 
 	// Import nodes using transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPImportNodes", "MCP Import Nodes"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Import Blueprint Nodes")));
 	Blueprint->Modify();
 	Graph->Modify();
 
@@ -3890,7 +3890,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_RemoveNodeStateless(const
 
 	FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRemoveNodeStateless", "MCP Remove Node"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Blueprint Node")));
 	Blueprint->Modify();
 	Graph->Modify();
 
@@ -3930,7 +3930,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_ReconstructNode(const FSt
 
 	FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPReconstructNode", "MCP Reconstruct Node"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Reconstruct Blueprint Node")));
 	Blueprint->Modify();
 	Node->ReconstructNode();
 	FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
@@ -3975,7 +3975,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_ReconstructNodeStateless(
 
 	FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPReconstructNodeStateless", "MCP Reconstruct Node"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Reconstruct Blueprint Node")));
 	Blueprint->Modify();
 	Node->ReconstructNode();
 	FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
@@ -4016,7 +4016,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_AddPin(const FString& Ses
 	FString PinValue;
 	Params->TryGetStringField(TEXT("pin_value"), PinValue);
 
-	FScopedTransaction Transaction(LOCTEXT("MCPAddPin", "MCP Add Pin"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Blueprint Pin")));
 	Blueprint->Modify();
 
 	FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
@@ -4187,7 +4187,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_RemovePin(const FString& 
 	FString NodeTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
 	FString RemovedPinName = TargetPin->PinName.ToString();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRemovePin", "MCP Remove Pin"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Blueprint Pin")));
 	Blueprint->Modify();
 
 	// Dispatch removal
@@ -4269,7 +4269,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_SplitPin(const FString& S
 
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPSplitPin", "MCP Split Pin"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Split Blueprint Pin")));
 	Blueprint->Modify();
 
 	K2Schema->SplitPin(Pin);
@@ -4340,7 +4340,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_RecombinePin(const FStrin
 
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRecombinePin", "MCP Recombine Pin"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Recombine Blueprint Pin")));
 	Blueprint->Modify();
 
 	K2Schema->RecombinePin(Pin);
@@ -4470,7 +4470,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_SetGameplayTags(const TSh
 	}
 
 	// Apply changes in a transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPSetGameplayTags", "MCP Set Gameplay Tags"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blueprint Gameplay Tags")));
 	Blueprint->Modify();
 	CDO->Modify();
 
@@ -4569,7 +4569,7 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_MoveNode(const FString& S
 	}
 
 	// Move the node
-	FScopedTransaction Transaction(LOCTEXT("MCPMoveNode", "MCP Move Node"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Move Blueprint Node")));
 	Node->Modify();
 	Node->NodePosX = X;
 	Node->NodePosY = Y;

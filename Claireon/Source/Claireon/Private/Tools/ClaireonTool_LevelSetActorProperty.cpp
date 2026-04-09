@@ -174,7 +174,7 @@ FToolResult ClaireonTool_LevelSetActorProperty::Execute(const TSharedPtr<FJsonOb
 	FString LastOldValue;
 	FString LastNewValue;
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Actor Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Actor Property")));
 	TargetActor->Modify();
 
 	for (const TSharedPtr<FJsonValue>& PropValue : *PropertiesArray)

@@ -8,6 +8,7 @@
 #include "DataTableEditorUtils.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableAddRow::GetName() const
 {
@@ -112,6 +113,7 @@ IClaireonTool::FToolResult ClaireonTool_DataTableAddRow::Execute(const TSharedPt
 	}
 
 	// Add the row using the editor utility (handles Modify, broadcast, etc.)
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] DataTable Add Row")));
 	FDataTableEditorUtils::AddRow(DataTable, RowName);
 
 	// Apply initial values if provided

@@ -665,7 +665,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_AddEmitter(const FString& Sessio
 
 	UNiagaraSystem* System = Data->System.Get();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Niagara Emitter")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Niagara Emitter")));
 	System->Modify();
 
 	// Load the default empty emitter template from editor settings
@@ -722,7 +722,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_RemoveEmitter(const FString& Ses
 
 	FString RemovedName = Handles[EmitterIndex].GetName().ToString();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Niagara Emitter")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Niagara Emitter")));
 	System->Modify();
 
 	System->RemoveEmitterHandle(Handles[EmitterIndex]);
@@ -768,7 +768,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_RenameEmitter(const FString& Ses
 
 	FString OldName = Handles[EmitterIndex].GetName().ToString();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Rename Niagara Emitter")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Rename Niagara Emitter")));
 	System->Modify();
 
 	// GetEmitterHandles() returns const ref; we need mutable access
@@ -804,7 +804,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetEmitterEnabled(const FString&
 			EmitterIndex, Handles.Num() - 1));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara Emitter Enabled")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara Emitter Enabled")));
 	System->Modify();
 
 	TArray<FNiagaraEmitterHandle>& MutableHandles = System->GetEmitterHandles();
@@ -857,7 +857,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_AddRenderer(const FString& Sessi
 		return MakeErrorResult(FString::Printf(TEXT("Could not get emitter data for emitter %d"), EmitterIndex));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Niagara Renderer")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Niagara Renderer")));
 	System->Modify();
 
 	UNiagaraEmitter* Emitter = Handle.GetInstance().Emitter;
@@ -910,7 +910,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_RemoveRenderer(const FString& Se
 	UNiagaraRendererProperties* RendererToRemove = Renderers[RendererIndex];
 	FString RendererName = ClaireonNiagaraHelpers::GetRendererTypeName(RendererToRemove);
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Niagara Renderer")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Niagara Renderer")));
 	System->Modify();
 
 	Handle.GetInstance().Emitter->RemoveRenderer(RendererToRemove, Handle.GetInstance().Version);
@@ -972,7 +972,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetRendererProperty(const FStrin
 
 	UNiagaraRendererProperties* Renderer = Renderers[RendererIndex];
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara Renderer Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara Renderer Property")));
 	System->Modify();
 
 	FString Error;
@@ -1028,7 +1028,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetEmitterProperty(const FString
 		return MakeErrorResult(FString::Printf(TEXT("Could not get emitter instance for emitter %d"), EmitterIndex));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara Emitter Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara Emitter Property")));
 	System->Modify();
 
 	FString Error;
@@ -1192,7 +1192,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_AddModule(const FString& Session
 	}
 
 	// Add the module
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Niagara Module")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Niagara Module")));
 	System->Modify();
 
 	UNiagaraNodeFunctionCall* NewModuleNode = FNiagaraStackGraphUtilities::AddScriptModuleToStack(Script, *OutputNode, Index);
@@ -1271,7 +1271,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_RemoveModule(const FString& Sess
 
 	// Remove the module by reconnecting the ParameterMap chain and destroying the node.
 	// This reimplements FNiagaraStackGraphUtilities::RemoveModuleFromStack which is not exported.
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Niagara Module")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Niagara Module")));
 	System->Modify();
 
 	UNiagaraNodeFunctionCall* ModuleToRemove = ModuleNodes[ModuleIndex];
@@ -1607,7 +1607,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetModuleInput(const FString& Se
 				}
 			}
 
-			FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara Static Switch")));
+			FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara Static Switch")));
 			System->Modify();
 			SwitchPin->Modify();
 			SwitchPin->DefaultValue = ResolvedValue;
@@ -1688,7 +1688,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetModuleInput(const FString& Se
 	}
 
 	// Wrap in transaction
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara Module Input")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara Module Input")));
 	System->Modify();
 
 	// Handle data interface types (curves)
@@ -1954,7 +1954,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetSystemProperty(const FString&
 
 	UNiagaraSystem* System = Data->System.Get();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara System Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara System Property")));
 	System->Modify();
 
 	FString Error;
@@ -2020,7 +2020,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_AddParameter(const FString& Sess
 
 	UNiagaraSystem* System = Data->System.Get();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Niagara Parameter")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Niagara Parameter")));
 	System->Modify();
 
 	FNiagaraVariable Variable(TypeDef, FName(*FullName));
@@ -2069,7 +2069,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_RemoveParameter(const FString& S
 		return MakeErrorResult(FString::Printf(TEXT("Parameter '%s' not found in exposed parameters"), *FullName));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Niagara Parameter")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Niagara Parameter")));
 	System->Modify();
 
 	System->GetExposedParameters().RemoveParameter(*FoundVar);
@@ -2122,7 +2122,7 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_SetParameterValue(const FString&
 		return MakeErrorResult(FString::Printf(TEXT("Parameter '%s' not found in exposed parameters"), *FullName));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Niagara Parameter Value")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Niagara Parameter Value")));
 	System->Modify();
 
 	FNiagaraTypeDefinition TypeDef = FoundVar->GetType();

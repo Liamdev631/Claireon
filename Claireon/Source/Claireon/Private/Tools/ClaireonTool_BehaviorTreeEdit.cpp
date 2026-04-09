@@ -448,7 +448,7 @@ FToolResult ClaireonTool_BehaviorTreeEdit::Operation_AddNode(const FString& Sess
 		}
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add BT Node")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add BT Node")));
 	Data->BehaviorTree->Modify();
 
 	// Create the new graph node
@@ -499,7 +499,7 @@ FToolResult ClaireonTool_BehaviorTreeEdit::Operation_RemoveNode(const FString& S
 		return MakeErrorResult(TEXT("Cannot remove the root node"));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove BT Node")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove BT Node")));
 	Data->BehaviorTree->Modify();
 
 	// Disconnect from parent
@@ -566,7 +566,7 @@ FToolResult ClaireonTool_BehaviorTreeEdit::Operation_MoveNode(const FString& Ses
 		}
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Move BT Node")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Move BT Node")));
 	Data->BehaviorTree->Modify();
 
 	// Disconnect from old parent
@@ -625,7 +625,7 @@ FToolResult ClaireonTool_BehaviorTreeEdit::Operation_SetNodeProperty(const FStri
 		return MakeErrorResult(TEXT("Node has no BT node instance"));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set BT Node Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set BT Node Property")));
 	Data->BehaviorTree->Modify();
 
 	if (!ClaireonBehaviorTreeHelpers::SetBTNodeProperty(NodeInstance, PropertyName, PropertyValue, Error))
@@ -907,7 +907,7 @@ FToolResult ClaireonTool_BehaviorTreeEdit::Operation_SetSubtreeAsset(const FStri
 		return MakeErrorResult(Error);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Subtree Asset")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Subtree Asset")));
 	Data->BehaviorTree->Modify();
 
 	// Set the BehaviorAsset property via reflection

@@ -8,6 +8,7 @@
 #include "DataTableEditorUtils.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableDuplicateRow::GetName() const
 {
@@ -110,6 +111,7 @@ IClaireonTool::FToolResult ClaireonTool_DataTableDuplicateRow::Execute(const TSh
 	}
 
 	// 6. Duplicate the row
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] DataTable Duplicate Row")));
 	uint8* NewRow = FDataTableEditorUtils::DuplicateRow(Table, SourceFName, NewFName);
 	if (!NewRow)
 	{

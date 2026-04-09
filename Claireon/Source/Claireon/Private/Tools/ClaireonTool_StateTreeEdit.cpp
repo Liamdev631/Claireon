@@ -590,7 +590,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddState(const FString& Sessio
 		return MakeErrorResult(FString::Printf(TEXT("Parent state not found: %s"), *ParentStateId.ToString()));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add State")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add State")));
 	Data->StateTree->Modify();
 
 	UStateTreeState& NewState = ParentState->AddChildState(FName(*Name), ParseStateType(StateTypeStr));
@@ -621,7 +621,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveState(const FString& Ses
 		return MakeErrorResult(FString::Printf(TEXT("State not found: %s"), *StateId.ToString()));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove State")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove State")));
 	Data->StateTree->Modify();
 
 	FString StateName = State->Name.ToString();
@@ -665,7 +665,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RenameState(const FString& Ses
 	if (!State)
 		return MakeErrorResult(TEXT("State not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Rename State")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Rename State")));
 	Data->StateTree->Modify();
 
 	FString OldName = State->Name.ToString();
@@ -696,7 +696,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_MoveState(const FString& Sessi
 	if (!NewParent)
 		return MakeErrorResult(TEXT("New parent state not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Move State")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Move State")));
 	Data->StateTree->Modify();
 
 	// Remove from old parent
@@ -739,7 +739,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_SetStateType(const FString& Se
 	if (!State)
 		return MakeErrorResult(TEXT("State not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set State Type")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set State Type")));
 	Data->StateTree->Modify();
 	State->Type = ParseStateType(TypeStr);
 
@@ -768,7 +768,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_SetStateSelectionBehavior(cons
 	if (!State)
 		return MakeErrorResult(TEXT("State not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set State Selection Behavior")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set State Selection Behavior")));
 	Data->StateTree->Modify();
 	State->SelectionBehavior = ParseSelectionBehavior(BehaviorStr);
 
@@ -796,7 +796,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_SetStateEnabled(const FString&
 	if (!State)
 		return MakeErrorResult(TEXT("State not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set State Enabled")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set State Enabled")));
 	Data->StateTree->Modify();
 	State->bEnabled = bEnabled;
 
@@ -846,7 +846,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddTask(const FString& Session
 		SetInitialProperties(NewNode, *PropsObj, State);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Task")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Task")));
 	Data->StateTree->Modify();
 
 	// Check schema for single vs multiple tasks
@@ -883,7 +883,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveTask(const FString& Sess
 	if (!State)
 		return MakeErrorResult(TEXT("State not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Task")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Task")));
 	Data->StateTree->Modify();
 
 	// Check SingleTask
@@ -960,7 +960,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddEnterCondition(const FStrin
 		SetInitialProperties(NewNode, *PropsObj, State);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Enter Condition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Enter Condition")));
 	Data->StateTree->Modify();
 	State->EnterConditions.Add(MoveTemp(NewNode));
 
@@ -994,7 +994,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveEnterCondition(const FSt
 	if (Index == INDEX_NONE)
 		return MakeErrorResult(TEXT("Condition not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Enter Condition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Enter Condition")));
 	Data->StateTree->Modify();
 	State->EnterConditions.RemoveAt(Index);
 
@@ -1038,7 +1038,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddConsideration(const FString
 		SetInitialProperties(NewNode, *PropsObj, State);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Consideration")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Consideration")));
 	Data->StateTree->Modify();
 	State->Considerations.Add(MoveTemp(NewNode));
 
@@ -1071,7 +1071,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveConsideration(const FStr
 	if (Index == INDEX_NONE)
 		return MakeErrorResult(TEXT("Consideration not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Consideration")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Consideration")));
 	Data->StateTree->Modify();
 	State->Considerations.RemoveAt(Index);
 
@@ -1107,7 +1107,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddEvaluator(const FString& Se
 		SetInitialProperties(NewNode, *PropsObj, EditorData);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Evaluator")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Evaluator")));
 	Data->StateTree->Modify();
 	EditorData->Evaluators.Add(MoveTemp(NewNode));
 
@@ -1133,7 +1133,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveEvaluator(const FString&
 	if (Index == INDEX_NONE)
 		return MakeErrorResult(TEXT("Evaluator not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Evaluator")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Evaluator")));
 	Data->StateTree->Modify();
 	EditorData->Evaluators.RemoveAt(Index);
 
@@ -1168,7 +1168,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddGlobalTask(const FString& S
 		SetInitialProperties(NewNode, *PropsObj, EditorData);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Global Task")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Global Task")));
 	Data->StateTree->Modify();
 	EditorData->GlobalTasks.Add(MoveTemp(NewNode));
 
@@ -1194,7 +1194,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveGlobalTask(const FString
 	if (Index == INDEX_NONE)
 		return MakeErrorResult(TEXT("Global task not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Global Task")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Global Task")));
 	Data->StateTree->Modify();
 	EditorData->GlobalTasks.RemoveAt(Index);
 
@@ -1226,7 +1226,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_SetNodeProperty(const FString&
 	if (!Node)
 		return MakeErrorResult(TEXT("Node not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Node Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Node Property")));
 	Data->StateTree->Modify();
 
 	if (!ClaireonStateTreeHelpers::SetNodeProperty(*Node, PropertyName, PropertyValue, bOnInstanceData, Error))
@@ -1280,7 +1280,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddTransition(const FString& S
 			return MakeErrorResult(TEXT("Target state not found"));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Transition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Transition")));
 	Data->StateTree->Modify();
 
 	FStateTreeTransition& NewTransition = State->AddTransition(Trigger, TransType, TargetState);
@@ -1343,7 +1343,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveTransition(const FString
 	if (Index == INDEX_NONE)
 		return MakeErrorResult(TEXT("Transition not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Transition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Transition")));
 	Data->StateTree->Modify();
 	State->Transitions.RemoveAt(Index);
 
@@ -1373,7 +1373,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_ModifyTransition(const FString
 	if (!Trans)
 		return MakeErrorResult(TEXT("Transition not found"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Modify Transition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Modify Transition")));
 	Data->StateTree->Modify();
 
 	FString TriggerStr;
@@ -1475,7 +1475,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddTransitionCondition(const F
 		SetInitialProperties(NewNode, *PropsObj, State);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Transition Condition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Transition Condition")));
 	Data->StateTree->Modify();
 	Trans->Conditions.Add(MoveTemp(NewNode));
 
@@ -1514,7 +1514,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveTransitionCondition(cons
 	if (Index == INDEX_NONE)
 		return MakeErrorResult(TEXT("Condition not found in transition"));
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Transition Condition")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Transition Condition")));
 	Data->StateTree->Modify();
 	Trans->Conditions.RemoveAt(Index);
 
@@ -1553,7 +1553,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddBinding(const FString& Sess
 	FStateTreePropertyPath TargetPath(TargetNodeId);
 	TargetPath.FromString(TargetProperty);
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Property Binding")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Property Binding")));
 	Data->StateTree->Modify();
 
 	FStateTreePropertyPathBinding Binding(SourcePath, TargetPath);
@@ -1648,7 +1648,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_AddPropertyFunction(const FStr
 		}
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Property Function Binding")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Property Function Binding")));
 	Data->StateTree->Modify();
 
 	FStateTreePropertyPath ResultSourcePath = EditorData->EditorBindings.AddFunctionPropertyBinding(NodeStruct, SourceSegments, TargetPath);
@@ -1715,7 +1715,7 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_RemoveBinding(const FString& S
 	FStateTreePropertyPath TargetPath(TargetNodeId);
 	TargetPath.FromString(TargetProperty);
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Property Binding")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Property Binding")));
 	Data->StateTree->Modify();
 	EditorData->EditorBindings.RemovePropertyBindings(TargetPath);
 

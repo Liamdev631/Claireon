@@ -96,6 +96,7 @@ IClaireonTool::FToolResult ClaireonTool_FormatBlueprintGraph::Execute(const TSha
 		return MakeErrorResult(FString::Printf(TEXT("Graph '%s' not found in Blueprint %s"), *GraphName, *AssetPath));
 	}
 
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Format Blueprint Graph")));
 #if WITH_BLUEPRINT_ASSIST
 	if (!FModuleManager::Get().IsModuleLoaded(TEXT("BlueprintAssist")))
 	{

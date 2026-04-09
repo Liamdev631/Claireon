@@ -8,6 +8,7 @@
 #include "DataTableEditorUtils.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableRenameRow::GetName() const
 {
@@ -110,6 +111,7 @@ IClaireonTool::FToolResult ClaireonTool_DataTableRenameRow::Execute(const TShare
 	}
 
 	// 6. Rename the row
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] DataTable Rename Row")));
 	bool bRenamed = FDataTableEditorUtils::RenameRow(Table, RowFName, NewFName);
 	if (!bRenamed)
 	{

@@ -332,7 +332,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_Close(const FString& SessionId,
 			FString PackageFilename;
 			if (FPackageName::DoesPackageExist(Package->GetName(), &PackageFilename))
 			{
-				FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Save PCG Graph")));
+				FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Save PCG Graph")));
 				UEditorLoadingAndSavingUtils::SavePackages({ Package }, false);
 			}
 		}
@@ -369,7 +369,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_AddNode(const FString& SessionI
 		return MakeErrorResult(Error);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add PCG Node")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add PCG Node")));
 
 	UPCGSettings* DefaultSettings = nullptr;
 	UPCGNode* NewNode = Data->PCGGraph->AddNodeOfType(TSubclassOf<UPCGSettings>(SettingsClass), DefaultSettings);
@@ -421,7 +421,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_RemoveNode(const FString& Sessi
 
 	FString RemovedName = ClaireonPCGGraphHelpers::GetNodeDisplayName(Node);
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove PCG Node")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove PCG Node")));
 	Data->PCGGraph->RemoveNode(Node);
 	ClaireonPCGGraphHelpers::NotifyGraphChanged(Data->PCGGraph.Get());
 
@@ -517,7 +517,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_Connect(const FString& SessionI
 			*ClaireonPCGGraphHelpers::GetNodeDisplayName(ToNode), *ToPinLabel));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Connect PCG Pins")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Connect PCG Pins")));
 	Data->PCGGraph->AddEdge(FromNode, FName(*FromPinLabel), ToNode, FName(*ToPinLabel));
 	ClaireonPCGGraphHelpers::NotifyGraphChanged(Data->PCGGraph.Get());
 
@@ -545,7 +545,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_Disconnect(const FString& Sessi
 		return MakeErrorResult(TEXT("Source or target node not found"));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Disconnect PCG Pins")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Disconnect PCG Pins")));
 	bool bRemoved = Data->PCGGraph->RemoveEdge(FromNode, FName(*FromPinLabel), ToNode, FName(*ToPinLabel));
 
 	if (!bRemoved)
@@ -584,7 +584,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_DisconnectAll(const FString& Se
 	FString Direction;
 	Params->TryGetStringField(TEXT("direction"), Direction);
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Disconnect All PCG Pins")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Disconnect All PCG Pins")));
 
 	bool bRemoved = false;
 	FName PinName(*PinLabel);
@@ -633,7 +633,7 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_SetNodeProperty(const FString& 
 		return MakeErrorResult(FString::Printf(TEXT("Node not found: %s"), *NodeIdentifier));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set PCG Node Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set PCG Node Property")));
 
 	FString Error;
 	if (!ClaireonPCGGraphHelpers::SetNodeProperty(Node, PropertyName, Value, Error))

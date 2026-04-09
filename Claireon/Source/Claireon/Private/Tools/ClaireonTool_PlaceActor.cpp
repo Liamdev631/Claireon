@@ -158,7 +158,7 @@ FToolResult ClaireonTool_PlaceActor::Execute(const TSharedPtr<FJsonObject>& Argu
 		return MakeErrorResult(TEXT("No actor specs provided. Pass an 'actors' array or flat object with 'class_path'."));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Place Actor")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Place Actor")));
 
 	TArray<TSharedPtr<FJsonValue>> ResultDetails;
 	int32 SuccessCount = 0;

@@ -878,7 +878,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_AddWidget(const FString& Sessio
 	// If no root exists at all, we will set the new widget as root
 
 	// Transaction
-	FScopedTransaction Transaction(LOCTEXT("MCPAddWidget", "MCP: Add Widget"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Widget")));
 	Tree->SetFlags(RF_Transactional);
 	Tree->Modify();
 
@@ -948,7 +948,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_RemoveWidget(const FString& Ses
 		return MakeErrorResult(FString::Printf(TEXT("Widget '%s' not found"), *WidgetName));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRemoveWidget", "MCP: Remove Widget"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Widget")));
 	Tree->SetFlags(RF_Transactional);
 	Tree->Modify();
 
@@ -1017,7 +1017,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_MoveWidget(const FString& Sessi
 		return MakeErrorResult(FString::Printf(TEXT("New parent widget '%s' is not a panel widget"), *NewParentName));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPMoveWidget", "MCP: Move Widget"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Move Widget")));
 	Tree->SetFlags(RF_Transactional);
 	Tree->Modify();
 
@@ -1082,7 +1082,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_ReplaceWidget(const FString& Se
 		return MakeErrorResult(FString::Printf(TEXT("Could not resolve new widget class '%s': %s"), *NewWidgetClassStr, *ClassError));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPReplaceWidget", "MCP: Replace Widget"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Replace Widget")));
 	Tree->SetFlags(RF_Transactional);
 	Tree->Modify();
 
@@ -1189,7 +1189,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_RenameWidget(const FString& Ses
 		return MakeErrorResult(FString::Printf(TEXT("A widget named '%s' already exists in the tree"), *NewName));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRenameWidget", "MCP: Rename Widget"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Rename Widget")));
 	Tree->SetFlags(RF_Transactional);
 	Tree->Modify();
 	Widget->Modify();
@@ -1249,7 +1249,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_SetWidgetProperty(const FString
 		return MakeErrorResult(FString::Printf(TEXT("Widget '%s' not found"), *WidgetName));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPSetWidgetProperty", "MCP: Set Widget Property"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Widget Property")));
 	Widget->Modify();
 
 	FString WriteError;
@@ -1302,7 +1302,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_SetSlotProperty(const FString& 
 		return MakeErrorResult(FString::Printf(TEXT("Widget '%s' has no slot (it may be the root widget)"), *WidgetName));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPSetSlotProperty", "MCP: Set Slot Property"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Slot Property")));
 	Slot->Modify();
 
 	FString WriteError;
@@ -1593,7 +1593,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_ImportWidgets(const FString& Se
 	TSet<UWidget*> ImportedWidgets;
 	TMap<FName, UWidgetSlotPair*> PastedExtraSlotData;
 
-	FScopedTransaction Transaction(LOCTEXT("MCPImportWidgets", "MCP: Import Widgets"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Import Widgets")));
 	WBP->WidgetTree->SetFlags(RF_Transactional);
 	WBP->WidgetTree->Modify();
 
@@ -2005,7 +2005,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_AddMVVMViewModel(const FString&
 	}
 
 	// Construct and add context
-	FScopedTransaction Transaction(LOCTEXT("MCPAddMVVMViewModel", "MCP: Add MVVM ViewModel"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add MVVM ViewModel")));
 
 	FMVVMBlueprintViewModelContext Context;
 	Context.ViewModelName = FName(*ViewModelName);
@@ -2063,7 +2063,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_RemoveMVVMViewModel(const FStri
 
 	FGuid VMId = Context->GetViewModelId();
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRemoveMVVMViewModel", "MCP: Remove MVVM ViewModel"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove MVVM ViewModel")));
 
 	// Need non-const view for mutation
 	UMVVMBlueprintView* MutableView = ClaireonWidgetHelpers::GetOrCreateMVVMBlueprintView(WBP);
@@ -2167,7 +2167,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_AddMVVMBinding(const FString& S
 		return MakeErrorResult(FString::Printf(TEXT("Widget '%s' not found in the widget tree"), *WidgetNameStr));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPAddMVVMBinding", "MCP: Add MVVM Binding"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add MVVM Binding")));
 
 	FMVVMBlueprintViewBinding& NewBinding = View->AddDefaultBinding();
 
@@ -2263,7 +2263,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_EditMVVMBinding(const FString& 
 		return MakeErrorResult(FString::Printf(TEXT("Binding with id '%s' not found"), *BindingIdStr));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPEditMVVMBinding", "MCP: Edit MVVM Binding"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Edit MVVM Binding")));
 
 	// Optional: mode
 	FString ModeStr;
@@ -2401,7 +2401,7 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_RemoveMVVMBinding(const FString
 		return MakeErrorResult(FString::Printf(TEXT("Binding with id '%s' not found"), *BindingIdStr));
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("MCPRemoveMVVMBinding", "MCP: Remove MVVM Binding"));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove MVVM Binding")));
 
 	View->RemoveBinding(Binding);
 

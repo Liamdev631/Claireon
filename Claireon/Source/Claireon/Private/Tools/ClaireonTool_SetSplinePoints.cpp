@@ -192,7 +192,7 @@ FToolResult ClaireonTool_SetSplinePoints::Execute(const TSharedPtr<FJsonObject>&
 	}
 
 	// Begin transaction for undo support
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Spline Points")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Spline Points")));
 	SplineComp->Modify();
 
 	// Clear existing points

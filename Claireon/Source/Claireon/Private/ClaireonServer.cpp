@@ -23,12 +23,14 @@
 #include "Editor.h"
 #include "ClaireonSettings.h"
 #include "ClaireonXmlFormatter.h"
+#include "Tools/ClaireonTool_Transaction.h"
 
 static constexpr uint32 MaxPortRetries = 10;
 
 static const TSet<FString> MCPVisibleTools = {
     TEXT("claireon.python_execute"),
-    TEXT("claireon.tools_search")
+    TEXT("claireon.tools_search"),
+    TEXT("claireon.transaction")
 };
 
 FClaireonServer::FClaireonServer()
@@ -457,6 +459,9 @@ void FClaireonServer::HandleInitialized(const FMCPRequestContext& Context)
 	SessionToolErrorCount = 0;
 	bFeedbackNudgeSent = false;
 	bFeedbackSubmittedThisSession = false;
+
+	// Reset transaction group state (close any leaked open groups)
+	ClaireonTool_Transaction::ResetGroupState();
 
 	UE_LOG(LogClaireon, Display, TEXT("[MCP] Client initialized"));
 }

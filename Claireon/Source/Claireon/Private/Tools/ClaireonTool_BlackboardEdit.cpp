@@ -392,7 +392,7 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_AddKey(const FString& Session
 		return MakeErrorResult(Error);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Add Blackboard Key")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Add Blackboard Key")));
 	BB->Modify();
 
 	FBlackboardEntry NewEntry;
@@ -433,7 +433,7 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_RemoveKey(const FString& Sess
 		return MakeErrorResult(FString::Printf(TEXT("Key '%s' not found in this blackboard's own keys"), *KeyName));
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Remove Blackboard Key")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Remove Blackboard Key")));
 	BB->Modify();
 
 	BB->Keys.RemoveAt(KeyIndex);
@@ -485,7 +485,7 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_RenameKey(const FString& Sess
 		}
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Rename Blackboard Key")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Rename Blackboard Key")));
 	BB->Modify();
 
 	FoundEntry->EntryName = FName(*NewName);
@@ -535,7 +535,7 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_SetKeyType(const FString& Ses
 		return MakeErrorResult(Error);
 	}
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Blackboard Key Type")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blackboard Key Type")));
 	BB->Modify();
 
 	FoundEntry->KeyType = NewKeyType;
@@ -558,7 +558,7 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_SetParent(const FString& Sess
 
 	UBlackboardData* BB = Data->BlackboardData.Get();
 
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Blackboard Parent")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blackboard Parent")));
 	BB->Modify();
 
 	if (ParentPath.IsEmpty())

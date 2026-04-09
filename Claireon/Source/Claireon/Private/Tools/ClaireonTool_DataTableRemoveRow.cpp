@@ -8,6 +8,7 @@
 #include "DataTableEditorUtils.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableRemoveRow::GetName() const
 {
@@ -81,7 +82,7 @@ IClaireonTool::FToolResult ClaireonTool_DataTableRemoveRow::Execute(const TShare
 		return MakeErrorResult(FString::Printf(TEXT("Row '%s' not found in %s"), *RowNameStr, *AssetPath));
 	}
 
-	DataTable->Modify();
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] DataTable Remove Row")));
 	FDataTableEditorUtils::RemoveRow(DataTable, RowName);
 
 	FString SaveError;

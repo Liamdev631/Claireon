@@ -147,6 +147,9 @@
 #include "Tools/ClaireonTool_PCGGraphInspect.h"
 #include "Tools/ClaireonTool_PCGGraphEdit.h"
 
+// Transaction management
+#include "Tools/ClaireonTool_Transaction.h"
+
 DEFINE_LOG_CATEGORY(LogClaireon);
 
 // Define the static FeatureName for IClaireonToolProvider
@@ -281,6 +284,9 @@ TArray<TSharedPtr<IClaireonTool>> FClaireonBuiltinToolProvider::GetTools() const
 	Tools.Add(MakeShared<ClaireonTool_SearchTools>());
 	Tools.Add(MakeShared<ClaireonTool_FeedbackSubmit>());
 
+	// Transaction management
+	Tools.Add(MakeShared<ClaireonTool_Transaction>());
+
 	// Data Table MCP tools
 	Tools.Add(MakeShared<ClaireonTool_DataTableSearch>());
 	Tools.Add(MakeShared<ClaireonTool_DataTableGetInfo>());
@@ -346,6 +352,9 @@ void FClaireonModule::StartupModule()
 
 void FClaireonModule::ShutdownModule()
 {
+	// Reset transaction group state (safety net for module shutdown)
+	ClaireonTool_Transaction::ResetGroupState();
+
 	FClaireonPIEManager::Get().UnbindEditorDelegates();
 	FClaireonRichTextStyle::Shutdown();
 

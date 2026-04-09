@@ -9,6 +9,7 @@
 #include "UObject/UnrealType.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "ScopedTransaction.h"
 
 FString ClaireonTool_DataTableSetRowValues::GetName() const
 {
@@ -121,6 +122,7 @@ IClaireonTool::FToolResult ClaireonTool_DataTableSetRowValues::Execute(const TSh
 
 	// Apply the values
 	FString SetError;
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] DataTable Set Row Values")));
 	DataTable->Modify();
 	if (!ClaireonDataTableHelpers::SetPropertyValues(DataTable, RowName, Values, SetError))
 	{

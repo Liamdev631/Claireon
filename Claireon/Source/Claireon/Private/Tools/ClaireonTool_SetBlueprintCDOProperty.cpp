@@ -189,7 +189,7 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintCDOProperty::Execute(const T
 	Property->ExportTextItem_Direct(OldValue, Property->ContainerPtrToValuePtr<void>(Container), nullptr, nullptr, PPF_None);
 
 	// Step 7: FScopedTransaction + Modify()
-	FScopedTransaction Transaction(FText::FromString(TEXT("MCP: Set Blueprint CDO Property")));
+	FScopedTransaction Transaction(FText::FromString(TEXT("[Claireon] Set Blueprint CDO Property")));
 	Blueprint->Modify();
 	CDO->Modify();
 
