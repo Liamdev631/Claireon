@@ -4,6 +4,7 @@
 #include "Tools/ClaireonTool_AnimEdit.h"
 #include "Tools/ClaireonAnimHelpers.h"
 #include "Tools/ClaireonPropertyUtils.h"
+#include "Tools/ClaireonAssetUtils.h"
 #include "ClaireonLog.h"
 #include "ClaireonSessionManager.h"
 #include "Animation/AnimSequence.h"
@@ -70,6 +71,7 @@ FString ClaireonTool_AnimEdit::GetFullDescription() const
 				"Notify operations: add_notify, remove_notify, move_notify, duplicate_notify, set_notify_property, get_notify_property, list_notify_properties, add_notify_track, remove_notify_track, rename_notify_track, reorder_notify_track\n"
 				"Curve operations: add_curve, remove_curve, add_curve_key, remove_curve_key, set_curve_key_property\n"
 				"Montage section operations (montage only): add_section, remove_section, set_section_link\n"
+				"Montage slot/segment operations (montage only): add_segment, remove_segment, set_segment_property, add_slot, remove_slot, set_slot_property\n"
 				"Modifier operations (AnimSequence only): list_modifiers, add_modifier, remove_modifier, apply_modifier, revert_modifier\n"
 				"Metadata operations: list_metadata, add_metadata, remove_metadata, set_metadata_property\n"
 				"Property operations: set_property\n\n"
@@ -123,6 +125,12 @@ TSharedPtr<FJsonObject> ClaireonTool_AnimEdit::GetInputSchema() const
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_section")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_section")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_section_link")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_segment")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_segment")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_segment_property")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_slot")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_slot")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_slot_property")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("list_modifiers")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_modifier")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_modifier")));
@@ -272,6 +280,18 @@ FToolResult ClaireonTool_AnimEdit::Execute(const TSharedPtr<FJsonObject>& Argume
 		return Operation_RemoveSection(SessionId, Data, Params);
 	if (Operation == TEXT("set_section_link"))
 		return Operation_SetSectionLink(SessionId, Data, Params);
+	if (Operation == TEXT("add_segment"))
+		return Operation_AddSegment(SessionId, Data, Params);
+	if (Operation == TEXT("remove_segment"))
+		return Operation_RemoveSegment(SessionId, Data, Params);
+	if (Operation == TEXT("set_segment_property"))
+		return Operation_SetSegmentProperty(SessionId, Data, Params);
+	if (Operation == TEXT("add_slot"))
+		return Operation_AddSlot(SessionId, Data, Params);
+	if (Operation == TEXT("remove_slot"))
+		return Operation_RemoveSlot(SessionId, Data, Params);
+	if (Operation == TEXT("set_slot_property"))
+		return Operation_SetSlotProperty(SessionId, Data, Params);
 
 	// Modifier ops
 	if (Operation == TEXT("list_modifiers"))
@@ -1275,6 +1295,9 @@ FToolResult ClaireonTool_AnimEdit::Operation_AddSection(const FString& SessionId
 		return MakeErrorResult(Error);
 	}
 
+	Montage->PostEditChange();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
 	Data->LastOperationStatus = FString::Printf(TEXT("add_section -> Added section '%s' at %.2fs"), *SectionName, StartTime);
 	return BuildStateResponse(SessionId, Data);
 }
@@ -1306,6 +1329,9 @@ FToolResult ClaireonTool_AnimEdit::Operation_RemoveSection(const FString& Sessio
 	{
 		return MakeErrorResult(Error);
 	}
+
+	Montage->PostEditChange();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
 
 	Data->LastOperationStatus = FString::Printf(TEXT("remove_section -> Removed section '%s'"), *SectionName);
 	return BuildStateResponse(SessionId, Data);
@@ -1345,7 +1371,358 @@ FToolResult ClaireonTool_AnimEdit::Operation_SetSectionLink(const FString& Sessi
 		return MakeErrorResult(Error);
 	}
 
+	Montage->PostEditChange();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
 	Data->LastOperationStatus = FString::Printf(TEXT("set_section_link -> %s -> %s"), *SectionName, *NextSectionName);
+	return BuildStateResponse(SessionId, Data);
+}
+
+// ============================================================================
+// Montage Slot/Segment Operations
+// ============================================================================
+
+// Helper: get a montage and validate, returns nullptr on error (error result set)
+static UAnimMontage* GetMontageOrError(FAnimEditToolData* Data, const char* OpName, FString& OutError)
+{
+	if (Data->AssetType != TEXT("AnimMontage"))
+	{
+		OutError = FString::Printf(TEXT("%s is only valid for AnimMontage assets"), UTF8_TO_TCHAR(OpName));
+		return nullptr;
+	}
+	UAnimMontage* Montage = Cast<UAnimMontage>(Data->Animation.Get());
+	if (!Montage)
+	{
+		OutError = TEXT("Failed to cast to AnimMontage");
+	}
+	return Montage;
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_AddSegment(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "add_segment", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	// Which slot to add to (default: 0)
+	double SlotIndexD = 0.0;
+	Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD);
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	// Animation asset path (required)
+	FString AnimPath;
+	if (!Params->TryGetStringField(TEXT("anim_path"), AnimPath) || AnimPath.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: anim_path"));
+	}
+
+	UAnimSequenceBase* AnimAsset = LoadObject<UAnimSequenceBase>(nullptr, *AnimPath);
+	if (!AnimAsset)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Failed to load animation: %s"), *AnimPath));
+	}
+
+	FAnimTrack& Track = Montage->SlotAnimTracks[SlotIndex].AnimTrack;
+
+	// Validate
+	FText ValidationReason;
+	if (!Track.IsValidToAdd(AnimAsset, &ValidationReason))
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Cannot add animation to slot: %s"), *ValidationReason.ToString()));
+	}
+
+	// Start position: default to end of current track
+	double StartPosD = -1.0;
+	Params->TryGetNumberField(TEXT("start_pos"), StartPosD);
+	float StartPos = (StartPosD >= 0.0) ? static_cast<float>(StartPosD) : Track.GetLength();
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_AddSegment", "MCP: Add Montage Segment"));
+	Montage->Modify();
+
+	FAnimSegment NewSeg;
+	NewSeg.SetAnimReference(AnimAsset, true); // true = initialize AnimStartTime/AnimEndTime from asset
+	NewSeg.StartPos = StartPos;
+
+	// Optional overrides
+	double PlayRate = 1.0;
+	if (Params->TryGetNumberField(TEXT("play_rate"), PlayRate))
+	{
+		NewSeg.AnimPlayRate = static_cast<float>(PlayRate);
+	}
+
+	double AnimStartTime = -1.0;
+	if (Params->TryGetNumberField(TEXT("anim_start_time"), AnimStartTime))
+	{
+		NewSeg.AnimStartTime = static_cast<float>(AnimStartTime);
+	}
+
+	double AnimEndTime = -1.0;
+	if (Params->TryGetNumberField(TEXT("anim_end_time"), AnimEndTime))
+	{
+		NewSeg.AnimEndTime = static_cast<float>(AnimEndTime);
+	}
+
+	Track.AnimSegments.Add(NewSeg);
+	Track.CollapseAnimSegments();
+
+	// Find the segment we just added and read back its exact StartPos after collapse
+	int32 NewIndex = Track.AnimSegments.Num() - 1;
+	float ActualStartPos = Track.AnimSegments[NewIndex].StartPos;
+
+	// Optionally create a section at the exact segment start position
+	FString SectionName;
+	if (Params->TryGetStringField(TEXT("section_name"), SectionName) && !SectionName.IsEmpty())
+	{
+		Montage->AddAnimCompositeSection(FName(*SectionName), ActualStartPos);
+	}
+
+	// Re-link all sections/notifies to updated segment layout (matches editor's SortAndUpdateMontage flow)
+	Montage->UpdateLinkableElements();
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("add_segment -> Added '%s' to slot [%d] at %.6fs [%d]%s"),
+		*AnimAsset->GetName(), SlotIndex, ActualStartPos, NewIndex,
+		SectionName.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" (section '%s')"), *SectionName));
+	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_RemoveSegment(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "remove_segment", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	double SlotIndexD = 0.0;
+	Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD);
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	double SegIndexD = -1.0;
+	if (!Params->TryGetNumberField(TEXT("segment_index"), SegIndexD))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: segment_index"));
+	}
+	int32 SegIndex = static_cast<int32>(SegIndexD);
+
+	FAnimTrack& Track = Montage->SlotAnimTracks[SlotIndex].AnimTrack;
+	if (SegIndex < 0 || SegIndex >= Track.AnimSegments.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Segment index %d out of range [0, %d)"), SegIndex, Track.AnimSegments.Num()));
+	}
+
+	FString SegName = Track.AnimSegments[SegIndex].GetAnimReference() ? Track.AnimSegments[SegIndex].GetAnimReference()->GetName() : TEXT("null");
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_RemoveSegment", "MCP: Remove Montage Segment"));
+	Montage->Modify();
+
+	Track.AnimSegments.RemoveAt(SegIndex);
+	Track.CollapseAnimSegments();
+	Montage->UpdateLinkableElements();
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("remove_segment -> Removed '%s' from slot [%d] segment [%d]"), *SegName, SlotIndex, SegIndex);
+	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_SetSegmentProperty(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "set_segment_property", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	double SlotIndexD = 0.0;
+	Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD);
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	double SegIndexD = -1.0;
+	if (!Params->TryGetNumberField(TEXT("segment_index"), SegIndexD))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: segment_index"));
+	}
+	int32 SegIndex = static_cast<int32>(SegIndexD);
+
+	FAnimTrack& Track = Montage->SlotAnimTracks[SlotIndex].AnimTrack;
+	if (SegIndex < 0 || SegIndex >= Track.AnimSegments.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Segment index %d out of range [0, %d)"), SegIndex, Track.AnimSegments.Num()));
+	}
+
+	FString PropertyName;
+	if (!Params->TryGetStringField(TEXT("property_name"), PropertyName) || PropertyName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: property_name"));
+	}
+
+	FString Value;
+	if (!Params->TryGetStringField(TEXT("value"), Value))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: value"));
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_SetSegmentProp", "MCP: Set Segment Property"));
+	Montage->Modify();
+
+	FAnimSegment& Seg = Track.AnimSegments[SegIndex];
+	FString PropLower = PropertyName.ToLower();
+
+	if (PropLower == TEXT("anim_path") || PropLower == TEXT("animation"))
+	{
+		UAnimSequenceBase* NewAnim = LoadObject<UAnimSequenceBase>(nullptr, *Value);
+		if (!NewAnim)
+		{
+			return MakeErrorResult(FString::Printf(TEXT("Failed to load animation: %s"), *Value));
+		}
+		Seg.SetAnimReference(NewAnim);
+	}
+	else if (PropLower == TEXT("play_rate"))
+	{
+		Seg.AnimPlayRate = FCString::Atof(*Value);
+	}
+	else if (PropLower == TEXT("anim_start_time"))
+	{
+		Seg.AnimStartTime = FCString::Atof(*Value);
+	}
+	else if (PropLower == TEXT("anim_end_time"))
+	{
+		Seg.AnimEndTime = FCString::Atof(*Value);
+	}
+	else if (PropLower == TEXT("looping_count"))
+	{
+		Seg.LoopingCount = FCString::Atoi(*Value);
+	}
+	else if (PropLower == TEXT("start_pos"))
+	{
+		Seg.StartPos = FCString::Atof(*Value);
+	}
+	else
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Unknown segment property '%s'. Supported: animation, play_rate, anim_start_time, anim_end_time, looping_count, start_pos"), *PropertyName));
+	}
+
+	Track.CollapseAnimSegments();
+	Montage->UpdateLinkableElements();
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("set_segment_property -> slot [%d] segment [%d]: %s = %s"), SlotIndex, SegIndex, *PropertyName, *Value);
+	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_AddSlot(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "add_slot", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	FString SlotName;
+	if (!Params->TryGetStringField(TEXT("slot_name"), SlotName) || SlotName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: slot_name"));
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_AddSlot", "MCP: Add Montage Slot"));
+	Montage->Modify();
+
+	Montage->AddSlot(FName(*SlotName));
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	int32 NewIndex = Montage->SlotAnimTracks.Num() - 1;
+	Data->LastOperationStatus = FString::Printf(TEXT("add_slot -> Added slot '%s' [%d]"), *SlotName, NewIndex);
+	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_RemoveSlot(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "remove_slot", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	double SlotIndexD = -1.0;
+	if (!Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: slot_index"));
+	}
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	if (Montage->SlotAnimTracks.Num() <= 1)
+	{
+		return MakeErrorResult(TEXT("Cannot remove the last slot track"));
+	}
+
+	FString SlotName = Montage->SlotAnimTracks[SlotIndex].SlotName.ToString();
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_RemoveSlot", "MCP: Remove Montage Slot"));
+	Montage->Modify();
+
+	Montage->SlotAnimTracks.RemoveAt(SlotIndex);
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("remove_slot -> Removed slot '%s' [%d]"), *SlotName, SlotIndex);
+	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_SetSlotProperty(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "set_slot_property", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	double SlotIndexD = -1.0;
+	if (!Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: slot_index"));
+	}
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	FString SlotName;
+	if (!Params->TryGetStringField(TEXT("slot_name"), SlotName) || SlotName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: slot_name"));
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_SetSlotProp", "MCP: Set Slot Property"));
+	Montage->Modify();
+
+	FString OldName = Montage->SlotAnimTracks[SlotIndex].SlotName.ToString();
+	Montage->SlotAnimTracks[SlotIndex].SlotName = FName(*SlotName);
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("set_slot_property -> Renamed slot [%d] '%s' -> '%s'"), SlotIndex, *OldName, *SlotName);
 	return BuildStateResponse(SessionId, Data);
 }
 
@@ -1494,7 +1871,9 @@ FToolResult ClaireonTool_AnimEdit::Operation_AddModifier(const FString& SessionI
 	}
 
 	ArrayPtr->Add(NewModifier);
+	AnimSeq->PostEditChange();
 	AnimSeq->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(AnimSeq);
 
 	Data->LastOperationStatus = FString::Printf(TEXT("add_modifier -> Added %s [%d]"), *ModifierClass->GetName(), ArrayPtr->Num() - 1);
 	return BuildStateResponse(SessionId, Data);
@@ -1556,7 +1935,9 @@ FToolResult ClaireonTool_AnimEdit::Operation_RemoveModifier(const FString& Sessi
 	}
 
 	ArrayPtr->RemoveAt(Index);
+	AnimSeq->PostEditChange();
 	AnimSeq->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(AnimSeq);
 
 	Data->LastOperationStatus = FString::Printf(TEXT("remove_modifier -> Removed %s [%d]"), *ModifierName, Index);
 	return BuildStateResponse(SessionId, Data);

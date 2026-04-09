@@ -8,6 +8,8 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Dom/JsonValue.h"
 #include "UObject/SavePackage.h"
+#include "Subsystems/AssetEditorSubsystem.h"
+#include "Editor.h"
 #include "UObject/UObjectIterator.h"
 #include "Misc/ScopedSlowTask.h"
 
@@ -243,6 +245,18 @@ TSharedPtr<FJsonObject> AssetDataToJson(const FAssetData& Data)
 	Obj->SetStringField(TEXT("name"), Data.AssetName.ToString());
 	Obj->SetStringField(TEXT("class"), Data.AssetClassPath.GetAssetName().ToString());
 	return Obj;
+}
+
+void RefreshAssetEditorIfOpen(UObject* Asset)
+{
+	if (!Asset || !GEditor) return;
+	UAssetEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	if (!Subsystem) return;
+	if (Subsystem->FindEditorForAsset(Asset, false) != nullptr)
+	{
+		Subsystem->CloseAllEditorsForAsset(Asset);
+		Subsystem->OpenEditorForAsset(Asset);
+	}
 }
 
 } // namespace ClaireonAssetUtils

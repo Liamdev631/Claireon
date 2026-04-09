@@ -86,6 +86,14 @@ private:
 	FToolResult Operation_RemoveSection(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
 	FToolResult Operation_SetSectionLink(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
 
+	// Montage slot/segment ops
+	FToolResult Operation_AddSegment(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_RemoveSegment(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_SetSegmentProperty(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_AddSlot(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_RemoveSlot(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+	FToolResult Operation_SetSlotProperty(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
+
 	// Modifier ops
 	FToolResult Operation_ListModifiers(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);
 	FToolResult Operation_AddModifier(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params);

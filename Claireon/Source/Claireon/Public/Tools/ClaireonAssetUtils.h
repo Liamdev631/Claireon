@@ -57,4 +57,11 @@ namespace ClaireonAssetUtils
 	 * @return JSON object with path, name, class fields
 	 */
 	CLAIREON_API TSharedPtr<FJsonObject> AssetDataToJson(const FAssetData& Data);
+
+	/**
+	 * Refresh an open asset editor by closing and reopening it.
+	 * No-op if the asset editor is not currently open — avoids popping up editors for background edits.
+	 * @param Asset - The asset whose editor should be refreshed
+	 */
+	CLAIREON_API void RefreshAssetEditorIfOpen(UObject* Asset);
 }
