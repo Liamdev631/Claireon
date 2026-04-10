@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "ClaireonBlueprintHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "Engine/Blueprint.h"
 #include "EdGraph/EdGraph.h"
@@ -188,9 +189,10 @@ namespace ClaireonBlueprintHelpers
 
 	bool ValidateAssetPath(const FString& AssetPath, FString& OutError)
 	{
-		if (!AssetPath.StartsWith(TEXT("/Game/")))
+		auto Result = ClaireonPathResolver::Resolve(AssetPath);
+		if (!Result.bSuccess)
 		{
-			OutError = FString::Printf(TEXT("Asset path must start with /Game/. Got: %s"), *AssetPath);
+			OutError = Result.Error;
 			return false;
 		}
 		return true;

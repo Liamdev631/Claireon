@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_MapDuplicate.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonBridge.h"
 #include "ClaireonLog.h"
 
@@ -87,7 +88,25 @@ FToolResult ClaireonTool_MapDuplicate::Execute(const TSharedPtr<FJsonObject>& Ar
 		return MakeErrorResult(TEXT("Editor not available"));
 	}
 
-	// Normalize: if caller passed a package path without object name
+	// Resolve paths
+	{
+		auto ResolveResult = ClaireonPathResolver::Resolve(SourcePath);
+		if (!ResolveResult.bSuccess)
+		{
+			return MakeErrorResult(ResolveResult.Error);
+		}
+		SourcePath = ResolveResult.ResolvedPath.Path;
+	}
+	{
+		auto ResolveResult = ClaireonPathResolver::Resolve(DestPath);
+		if (!ResolveResult.bSuccess)
+		{
+			return MakeErrorResult(ResolveResult.Error);
+		}
+		DestPath = ResolveResult.ResolvedPath.Path;
+	}
+
+	// Post-resolver: append object name for asset registry lookup
 	FString SourceObjectPath = SourcePath;
 	if (!SourceObjectPath.Contains(TEXT(".")))
 	{

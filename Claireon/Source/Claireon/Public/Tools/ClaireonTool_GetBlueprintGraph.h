@@ -31,9 +31,6 @@ private:
 	/** Load a Blueprint from an asset path and validate it */
 	class UBlueprint* LoadBlueprintFromPath(const FString& AssetPath, FString& OutError);
 
-	/** Validate that an asset path starts with /Game/ */
-	static bool ValidateAssetPath(const FString& AssetPath, FString& OutError);
-
 	/** Find a graph by name within a Blueprint */
 	class UEdGraph* FindGraphByName(const class UBlueprint* Blueprint, const FString& GraphName, FString& OutError);
 

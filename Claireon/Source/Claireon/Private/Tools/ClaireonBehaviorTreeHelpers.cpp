@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonBehaviorTreeHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BTCompositeNode.h"
@@ -31,24 +32,26 @@
 
 UBehaviorTree* ClaireonBehaviorTreeHelpers::LoadBehaviorTreeAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UBehaviorTree* BT = Cast<UBehaviorTree>(LoadedObj);
 	if (!BT)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not a Behavior Tree (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not a Behavior Tree (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 
@@ -57,24 +60,26 @@ UBehaviorTree* ClaireonBehaviorTreeHelpers::LoadBehaviorTreeAsset(const FString&
 
 UBlackboardData* ClaireonBehaviorTreeHelpers::LoadBlackboardAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UBlackboardData* BB = Cast<UBlackboardData>(LoadedObj);
 	if (!BB)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not a Blackboard Data (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not a Blackboard Data (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 
@@ -913,24 +918,26 @@ FString ClaireonBehaviorTreeHelpers::FormatBTGraphStructure(UBehaviorTreeGraph* 
 
 UEnvQuery* ClaireonBehaviorTreeHelpers::LoadEQSAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UEnvQuery* Query = Cast<UEnvQuery>(LoadedObj);
 	if (!Query)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not an EQS Query (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not an EQS Query (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "ClaireonSessionManager.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 
 FClaireonSessionManager& FClaireonSessionManager::Get()
@@ -321,56 +322,19 @@ FOnMCPSessionClosed& FClaireonSessionManager::OnSessionClosed()
 
 FString FClaireonSessionManager::CanonicalizePath(const FString& InPath)
 {
-	FString Path = InPath;
-	Path.TrimStartAndEndInline();
-
-	// Normalize backslashes to forward slashes
-	Path.ReplaceCharInline(TEXT('\\'), TEXT('/'));
-
-	// Collapse double (or more) slashes: //+ -> /
-	while (Path.Contains(TEXT("//")))
+	auto Result = ClaireonPathResolver::Resolve(InPath);
+	if (!Result.bSuccess)
 	{
-		Path.ReplaceInline(TEXT("//"), TEXT("/"));
-	}
-
-	// Remove trailing slash
-	if (Path.Len() > 1 && Path.EndsWith(TEXT("/")))
-	{
-		Path.LeftChopInline(1);
-	}
-
-	// Remove .uasset or .umap extension (case-insensitive)
-	if (Path.EndsWith(TEXT(".uasset"), ESearchCase::IgnoreCase))
-	{
-		Path.LeftChopInline(7);
-	}
-	else if (Path.EndsWith(TEXT(".umap"), ESearchCase::IgnoreCase))
-	{
-		Path.LeftChopInline(5);
-	}
-
-	// Remove object name suffix: /Game/Path/BP_Foo.BP_Foo -> /Game/Path/BP_Foo
-	const int32 LastSlash = Path.Find(TEXT("/"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-	if (LastSlash != INDEX_NONE)
-	{
-		const int32 DotPos = Path.Find(TEXT("."), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
-		if (DotPos != INDEX_NONE && DotPos > LastSlash)
-		{
-			const FString AssetName = Path.Mid(LastSlash + 1, DotPos - LastSlash - 1);
-			const FString ObjectName = Path.Mid(DotPos + 1);
-			if (AssetName == ObjectName)
-			{
-				Path.LeftInline(DotPos);
-			}
-		}
-	}
-
-	// Validate starts with /Game/
-	if (!Path.StartsWith(TEXT("/Game/")))
-	{
-		UE_LOG(LogClaireon, Warning, TEXT("Path canonicalization rejected invalid path: '%s'"), *InPath);
+		UE_LOG(LogClaireon, Warning, TEXT("Path canonicalization rejected invalid path: '%s' (%s)"), *InPath, *Result.Error);
 		return FString();
 	}
 
-	return Path;
+	// Session locking only applies to /Game/ assets
+	if (!Result.ResolvedPath.Path.StartsWith(TEXT("/Game/")))
+	{
+		UE_LOG(LogClaireon, Warning, TEXT("Path canonicalization rejected non-/Game/ path: '%s'"), *InPath);
+		return FString();
+	}
+
+	return Result.ResolvedPath.Path;
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonStateTreeHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
@@ -22,24 +23,26 @@
 
 UStateTree* ClaireonStateTreeHelpers::LoadStateTreeAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UStateTree* StateTree = Cast<UStateTree>(LoadedObj);
 	if (!StateTree)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not a State Tree (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not a State Tree (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 

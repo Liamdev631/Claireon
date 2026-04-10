@@ -4,6 +4,7 @@
 #include "Tools/ClaireonTool_EditWidgetBP.h"
 #include "ClaireonLog.h"
 #include "ClaireonWidgetHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/WidgetTree.h"
@@ -412,13 +413,13 @@ FToolResult ClaireonTool_EditWidgetBP::Operation_Open(const TSharedPtr<FJsonObje
 		return MakeErrorResult(TEXT("Missing required field: asset_path. open requires: asset_path (e.g. \"/Game/UI/WBP_MyWidget.WBP_MyWidget\")"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	// (e.g., double slashes cause a fatal error in CreatePackage)
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Load the widget blueprint
 	UWidgetBlueprint* WBP = LoadObject<UWidgetBlueprint>(nullptr, *AssetPath);

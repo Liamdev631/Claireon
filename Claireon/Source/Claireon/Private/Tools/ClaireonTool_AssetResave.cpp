@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_AssetResave.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 
 #include "Dom/JsonObject.h"
@@ -79,8 +80,16 @@ IClaireonTool::FToolResult ClaireonTool_AssetResave::Execute(const TSharedPtr<FJ
 			continue;
 		}
 
-		// Strip asset suffix if present
-		FString PackagePathStr = AssetPath;
+		// Resolve path
+		auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+		if (!ResolveResult.bSuccess)
+		{
+			FailedArray.Add(MakeShared<FJsonValueString>(AssetPath));
+			UE_LOG(LogTemp, Warning, TEXT("ClaireonTool_AssetResave: Invalid path: %s"), *ResolveResult.Error);
+			continue;
+		}
+		FString PackagePathStr = ResolveResult.ResolvedPath.Path;
+		// Post-resolver: strip sub-object reference for LoadPackage
 		int32 DotIndex;
 		if (PackagePathStr.FindChar(TEXT('.'), DotIndex))
 		{

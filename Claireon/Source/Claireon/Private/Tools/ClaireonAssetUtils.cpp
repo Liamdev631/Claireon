@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonAssetUtils.h"
+#include "ClaireonPathResolver.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/ARFilter.h"
 #include "Engine/Blueprint.h"
@@ -21,25 +22,27 @@ static TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UBlueprint>> GCDOToBlueprint
 
 UObject* LoadAssetForEditing(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Empty asset path");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
 	// Try loading as Blueprint first
-	UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);
+	UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *ResolvedPath);
 	if (Blueprint)
 	{
 		if (!Blueprint->GeneratedClass)
 		{
-			OutError = FString::Printf(TEXT("Blueprint '%s' has no GeneratedClass"), *AssetPath);
+			OutError = FString::Printf(TEXT("Blueprint '%s' has no GeneratedClass"), *ResolvedPath);
 			return nullptr;
 		}
 		UObject* CDO = Blueprint->GeneratedClass->GetDefaultObject();
 		if (!CDO)
 		{
-			OutError = FString::Printf(TEXT("Failed to get CDO from Blueprint '%s'"), *AssetPath);
+			OutError = FString::Printf(TEXT("Failed to get CDO from Blueprint '%s'"), *ResolvedPath);
 			return nullptr;
 		}
 		GCDOToBlueprintMap.Add(CDO, Blueprint);
@@ -47,10 +50,10 @@ UObject* LoadAssetForEditing(const FString& AssetPath, FString& OutError)
 	}
 
 	// Not a Blueprint — try loading as a native UObject
-	UObject* Asset = FSoftObjectPath(AssetPath).TryLoad();
+	UObject* Asset = FSoftObjectPath(ResolvedPath).TryLoad();
 	if (!Asset)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at '%s'"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at '%s'"), *ResolvedPath);
 		return nullptr;
 	}
 

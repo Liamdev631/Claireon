@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_SetBlueprintCDOProperty.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonBlueprintHelpers.h"
 #include "Tools/ClaireonPropertyResolver.h"
 #include "Engine/Blueprint.h"
@@ -97,12 +98,13 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintCDOProperty::Execute(const T
 	FString PropertyPath;
 	Arguments->TryGetStringField(TEXT("property_path"), PropertyPath);
 
-	// Step 1: Validate asset_path
-	FString ValidationError;
-	if (!ClaireonBlueprintHelpers::ValidateAssetPath(AssetPath, ValidationError))
+	// Step 1: Resolve asset_path
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(ValidationError);
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Step 2: Load Blueprint
 	UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);

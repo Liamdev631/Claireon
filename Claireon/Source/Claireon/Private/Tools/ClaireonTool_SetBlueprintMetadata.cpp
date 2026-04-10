@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_SetBlueprintMetadata.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "ClaireonBlueprintHelpers.h"
 #include "Engine/Blueprint.h"
@@ -98,12 +99,13 @@ IClaireonTool::FToolResult ClaireonTool_SetBlueprintMetadata::Execute(const TSha
 		return MakeErrorResult(TEXT("Missing required field: value"));
 	}
 
-	// Validate asset_path
-	FString ValidationError;
-	if (!ClaireonBlueprintHelpers::ValidateAssetPath(AssetPath, ValidationError))
+	// Resolve asset_path
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(ValidationError);
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Load Blueprint
 	UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_GetBlueprintProperties.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintGeneratedClass.h"
@@ -59,11 +60,12 @@ IClaireonTool::FToolResult ClaireonTool_GetBlueprintProperties::Execute(const TS
 	}
 
 	FString AssetPath = Arguments->GetStringField(TEXT("asset_path"));
-	FString ValidationError;
-	if (!ValidateAssetPath(AssetPath, ValidationError))
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(FString::Printf(TEXT("%s Use find_assets to locate valid Blueprint paths."), *ValidationError));
+		return MakeErrorResult(FString::Printf(TEXT("%s Use find_assets to locate valid Blueprint paths."), *ResolveResult.Error));
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	bool bIncludeInherited = false;
 	if (Arguments->HasField(TEXT("include_inherited")))
@@ -275,15 +277,6 @@ UBlueprint* ClaireonTool_GetBlueprintProperties::LoadBlueprintFromPath(const FSt
 	return Blueprint;
 }
 
-bool ClaireonTool_GetBlueprintProperties::ValidateAssetPath(const FString& AssetPath, FString& OutError)
-{
-	if (!AssetPath.StartsWith(TEXT("/Game/")))
-	{
-		OutError = FString::Printf(TEXT("Asset path must start with /Game/. Got: %s"), *AssetPath);
-		return false;
-	}
-	return true;
-}
 
 FString ClaireonTool_GetBlueprintProperties::FormatVariables(const UBlueprint* Blueprint, bool bIncludeInherited)
 {

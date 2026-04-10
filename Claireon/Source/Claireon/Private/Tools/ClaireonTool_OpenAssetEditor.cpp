@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_OpenAssetEditor.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -84,6 +85,16 @@ IClaireonTool::FToolResult ClaireonTool_OpenAssetEditor::Execute(const TSharedPt
 	if (AssetPaths.Num() == 0)
 	{
 		return MakeErrorResult(TEXT("Missing required field: asset_path"));
+	}
+
+	// Resolve all paths
+	for (FString& Path : AssetPaths)
+	{
+		auto ResolveResult = ClaireonPathResolver::Resolve(Path);
+		if (ResolveResult.bSuccess)
+		{
+			Path = ResolveResult.ResolvedPath.Path;
+		}
 	}
 
 	// Validate all assets exist before deferring

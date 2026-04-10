@@ -4,6 +4,7 @@
 #include "Tools/ClaireonTool_PCGGraphEdit.h"
 #include "Tools/ClaireonPCGGraphHelpers.h"
 #include "ClaireonLog.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -269,12 +270,13 @@ FToolResult ClaireonTool_PCGGraphEdit::Operation_Open(const TSharedPtr<FJsonObje
 		return MakeErrorResult(TEXT("Missing required parameter: params.asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	FString Error;
 	UPCGGraph* Graph = ClaireonPCGGraphHelpers::LoadPCGGraphAsset(AssetPath, Error);

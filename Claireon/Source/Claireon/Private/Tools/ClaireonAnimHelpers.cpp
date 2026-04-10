@@ -3,6 +3,7 @@
 
 #include "Tools/ClaireonAnimHelpers.h"
 #include "Tools/ClaireonPropertyUtils.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimMontage.h"
@@ -26,24 +27,26 @@
 
 UAnimSequenceBase* ClaireonAnimHelpers::LoadAnimAsset(const FString& AssetPath, FString& OutAssetType, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
 	// Try loading via soft object path first for reliable package resolution
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
 		// Fallback: try LoadObject directly
-		LoadedObj = LoadObject<UAnimSequenceBase>(nullptr, *AssetPath);
+		LoadedObj = LoadObject<UAnimSequenceBase>(nullptr, *ResolvedPath);
 	}
 
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s. Verify the path is correct and the asset exists."), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s. Verify the path is correct and the asset exists."), *ResolvedPath);
 		return nullptr;
 	}
 
@@ -51,7 +54,7 @@ UAnimSequenceBase* ClaireonAnimHelpers::LoadAnimAsset(const FString& AssetPath, 
 	if (!Anim)
 	{
 		OutError = FString::Printf(TEXT("Asset at %s is not an animation (actual type: %s). Expected AnimSequence, AnimMontage, or AnimComposite."),
-			*AssetPath, *LoadedObj->GetClass()->GetName());
+			*ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 

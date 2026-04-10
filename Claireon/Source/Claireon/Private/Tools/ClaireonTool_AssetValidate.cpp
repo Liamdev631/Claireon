@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_AssetValidate.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 
 #include "AssetRegistry/AssetData.h"
@@ -48,6 +49,13 @@ IClaireonTool::FToolResult ClaireonTool_AssetValidate::Execute(const TSharedPtr<
 {
 	FString ContentPath = TEXT("/Game");
 	Arguments->TryGetStringField(TEXT("contentPath"), ContentPath);
+	{
+		auto ResolveResult = ClaireonPathResolver::Resolve(ContentPath);
+		if (ResolveResult.bSuccess)
+		{
+			ContentPath = ResolveResult.ResolvedPath.Path;
+		}
+	}
 
 	bool bCheckReferences = false;
 	Arguments->TryGetBoolField(TEXT("checkReferences"), bCheckReferences);

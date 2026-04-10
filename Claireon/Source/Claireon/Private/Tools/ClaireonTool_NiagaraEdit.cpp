@@ -4,6 +4,7 @@
 #include "Tools/ClaireonTool_NiagaraEdit.h"
 #include "Tools/ClaireonNiagaraHelpers.h"
 #include "ClaireonLog.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 #include "NiagaraSystem.h"
 #include "NiagaraEmitter.h"
@@ -558,12 +559,13 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_Open(const TSharedPtr<FJsonObjec
 		return MakeErrorResult(TEXT("'open' requires params.asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	FString Error;
 	UNiagaraSystem* System = ClaireonNiagaraHelpers::LoadNiagaraSystemAsset(AssetPath, Error);
@@ -1864,12 +1866,13 @@ FToolResult ClaireonTool_NiagaraEdit::Operation_Create(const TSharedPtr<FJsonObj
 		return MakeErrorResult(TEXT("'create' requires params.asset_path"));
 	}
 
-	// Canonicalize path
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Check asset doesn't already exist
 	FSoftObjectPath SoftPath(AssetPath);

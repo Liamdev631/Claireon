@@ -4,6 +4,7 @@
 #include "Tools/ClaireonTool_BlackboardEdit.h"
 #include "Tools/ClaireonBehaviorTreeHelpers.h"
 #include "ClaireonLog.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 #include "BehaviorTree/BlackboardData.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType.h"
@@ -271,12 +272,13 @@ FToolResult ClaireonTool_BlackboardEdit::Operation_Open(const TSharedPtr<FJsonOb
 		return MakeErrorResult(TEXT("'open' requires params.asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	FString Error;
 	UBlackboardData* BB = ClaireonBehaviorTreeHelpers::LoadBlackboardAsset(AssetPath, Error);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_MapOpen.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonBridge.h"
 #include "ClaireonLog.h"
 
@@ -61,7 +62,15 @@ IClaireonTool::FToolResult ClaireonTool_MapOpen::Execute(const TSharedPtr<FJsonO
 		return MakeErrorResult(TEXT("Editor not available"));
 	}
 
-	// Normalize: if caller passed a package path without object name
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(MapPath);
+	if (!ResolveResult.bSuccess)
+	{
+		return MakeErrorResult(ResolveResult.Error);
+	}
+	MapPath = ResolveResult.ResolvedPath.Path;
+
+	// Post-resolver: append object name for LoadMap (required by UEditorLoadingAndSavingUtils)
 	if (!MapPath.Contains(TEXT(".")))
 	{
 		FString AssetName = FPaths::GetBaseFilename(MapPath);

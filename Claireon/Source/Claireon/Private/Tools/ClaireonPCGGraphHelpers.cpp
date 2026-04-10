@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonPCGGraphHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
@@ -18,24 +19,26 @@
 
 UPCGGraph* ClaireonPCGGraphHelpers::LoadPCGGraphAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UPCGGraph* Graph = Cast<UPCGGraph>(LoadedObj);
 	if (!Graph)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not a PCG Graph (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not a PCG Graph (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 

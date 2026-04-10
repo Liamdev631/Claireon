@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonDataTableHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "Engine/DataTable.h"
 #include "Engine/CompositeDataTable.h"
@@ -15,23 +16,25 @@ namespace ClaireonDataTableHelpers
 
 UDataTable* LoadDataTableAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	UObject* LoadedObj = FSoftObjectPath(AssetPath).TryLoad();
+	UObject* LoadedObj = FSoftObjectPath(ResolvedPath).TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UDataTable* DataTable = Cast<UDataTable>(LoadedObj);
 	if (!DataTable)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not a DataTable (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not a DataTable (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 

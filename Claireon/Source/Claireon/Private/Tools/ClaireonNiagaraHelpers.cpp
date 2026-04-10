@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonNiagaraHelpers.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "NiagaraSystem.h"
 #include "NiagaraEmitterHandle.h"
@@ -91,24 +92,26 @@ static UEdGraphPin* FindStackFunctionInputOverridePin(UNiagaraNodeFunctionCall& 
 
 UNiagaraSystem* ClaireonNiagaraHelpers::LoadNiagaraSystemAsset(const FString& AssetPath, FString& OutError)
 {
-	if (AssetPath.IsEmpty())
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		OutError = TEXT("Asset path is empty");
+		OutError = ResolveResult.Error;
 		return nullptr;
 	}
+	const FString ResolvedPath = ResolveResult.ResolvedPath.Path;
 
-	FSoftObjectPath SoftPath(AssetPath);
+	FSoftObjectPath SoftPath(ResolvedPath);
 	UObject* LoadedObj = SoftPath.TryLoad();
 	if (!LoadedObj)
 	{
-		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *AssetPath);
+		OutError = FString::Printf(TEXT("Failed to load asset at path: %s"), *ResolvedPath);
 		return nullptr;
 	}
 
 	UNiagaraSystem* System = Cast<UNiagaraSystem>(LoadedObj);
 	if (!System)
 	{
-		OutError = FString::Printf(TEXT("Asset at %s is not a Niagara System (actual type: %s)"), *AssetPath, *LoadedObj->GetClass()->GetName());
+		OutError = FString::Printf(TEXT("Asset at %s is not a Niagara System (actual type: %s)"), *ResolvedPath, *LoadedObj->GetClass()->GetName());
 		return nullptr;
 	}
 

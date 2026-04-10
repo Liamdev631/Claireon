@@ -24,9 +24,6 @@ private:
 	/** Load a Blueprint from an asset path and validate it */
 	class UBlueprint* LoadBlueprintFromPath(const FString& AssetPath, FString& OutError);
 
-	/** Validate that an asset path starts with /Game/ */
-	static bool ValidateAssetPath(const FString& AssetPath, FString& OutError);
-
 	/** Format Blueprint variables section */
 	FString FormatVariables(const class UBlueprint* Blueprint, bool bIncludeInherited);
 

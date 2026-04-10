@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_PlaceActor.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "Tools/ClaireonPropertyResolver.h"
 
@@ -201,6 +202,15 @@ FToolResult ClaireonTool_PlaceActor::Execute(const TSharedPtr<FJsonObject>& Argu
 
 		FString Label;
 		Spec->TryGetStringField(TEXT("label"), Label);
+
+		// Resolve class path
+		{
+			auto ResolveResult = ClaireonPathResolver::Resolve(ClassPath);
+			if (ResolveResult.bSuccess)
+			{
+				ClassPath = ResolveResult.ResolvedPath.Path;
+			}
+		}
 
 		// Load the object
 		UObject* LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *ClassPath);

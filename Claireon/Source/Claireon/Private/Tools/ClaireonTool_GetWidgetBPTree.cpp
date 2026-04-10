@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_GetWidgetBPTree.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "ClaireonWidgetHelpers.h"
 #include "WidgetBlueprint.h"
@@ -84,11 +85,12 @@ ClaireonTool_GetWidgetBPTree::FToolResult ClaireonTool_GetWidgetBPTree::Execute(
 		return MakeErrorResult(TEXT("Missing required field: asset_path"));
 	}
 
-	FString ValidationError;
-	if (!ClaireonWidgetHelpers::ValidateWidgetBPAssetPath(AssetPath, ValidationError))
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(ValidationError);
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	UWidgetBlueprint* WBP = LoadObject<UWidgetBlueprint>(nullptr, *AssetPath);
 	if (!WBP)

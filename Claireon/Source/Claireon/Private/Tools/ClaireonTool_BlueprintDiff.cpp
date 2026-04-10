@@ -3,6 +3,7 @@
 
 #include "Tools/ClaireonTool_BlueprintDiff.h"
 
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "Tools/ClaireonDiffHelpers.h"
 #include "DiffUtils.h"
@@ -228,11 +229,12 @@ IClaireonTool::FToolResult ClaireonTool_BlueprintDiff::Execute(const TSharedPtr<
 		return MakeErrorResult(TEXT("Missing required field: asset_path_a"));
 	}
 
-	FString ValidationError;
-	if (!ClaireonDiffHelpers::ValidateAssetPath(PathA, ValidationError))
+	auto ResolveResult = ClaireonPathResolver::Resolve(PathA);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(ValidationError);
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	PathA = ResolveResult.ResolvedPath.Path;
 
 	FString PathB = PathA;
 	Arguments->TryGetStringField(TEXT("asset_path_b"), PathB);
@@ -278,6 +280,7 @@ IClaireonTool::FToolResult ClaireonTool_BlueprintDiff::Execute(const TSharedPtr<
 	}
 
 	// Resolve both sides
+	FString ValidationError;
 	ClaireonDiffHelpers::FResolvedDiffSide SideA = ClaireonDiffHelpers::ResolveDiffSide(PathA, RevisionA, ValidationError);
 	if (!SideA.IsValid())
 	{

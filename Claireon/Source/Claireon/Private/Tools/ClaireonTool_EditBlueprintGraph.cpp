@@ -68,6 +68,7 @@
 #include "AnimationGraph.h"
 #include "GameplayTagContainer.h"
 #include "GameplayTagsManager.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 
 // UE 5.7 changed NodePosX/Y from float to int32, adding getter/setter accessors.
@@ -567,13 +568,13 @@ FToolResult ClaireonTool_EditBlueprintGraph::Operation_Open(const TSharedPtr<FJs
 		return MakeErrorResult(TEXT("Missing required field: asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	// (e.g., double slashes cause a fatal error in CreatePackage)
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Load Blueprint
 	UBlueprint* Blueprint = LoadObject<UBlueprint>(nullptr, *AssetPath);

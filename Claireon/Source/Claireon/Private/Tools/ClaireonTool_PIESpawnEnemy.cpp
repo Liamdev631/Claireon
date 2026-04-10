@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_PIESpawnEnemy.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "ClaireonPIEManager.h"
 
@@ -147,6 +148,15 @@ IClaireonTool::FToolResult ClaireonTool_PIESpawnEnemy::Execute(const TSharedPtr<
 				FVector Forward = RelActor->GetActorForwardVector();
 				SpawnLocation = RelActor->GetActorLocation() + Forward * static_cast<float>(Distance);
 			}
+		}
+	}
+
+	// Resolve pawn data path
+	{
+		auto ResolveResult = ClaireonPathResolver::Resolve(PawnDataPath);
+		if (ResolveResult.bSuccess)
+		{
+			PawnDataPath = ResolveResult.ResolvedPath.Path;
 		}
 	}
 

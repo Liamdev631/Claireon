@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_GetBlueprintGraph.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonBlueprintHelpers.h"
 #include "ClaireonLog.h"
 #include "Engine/Blueprint.h"
@@ -138,11 +139,12 @@ IClaireonTool::FToolResult ClaireonTool_GetBlueprintGraph::Execute(const TShared
 	}
 
 	FString AssetPath = Arguments->GetStringField(TEXT("asset_path"));
-	FString ValidationError;
-	if (!ValidateAssetPath(AssetPath, ValidationError))
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(ValidationError);
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Optional parameters
 	FString GraphName;
@@ -459,15 +461,6 @@ UBlueprint* ClaireonTool_GetBlueprintGraph::LoadBlueprintFromPath(const FString&
 	return Blueprint;
 }
 
-bool ClaireonTool_GetBlueprintGraph::ValidateAssetPath(const FString& AssetPath, FString& OutError)
-{
-	if (!AssetPath.StartsWith(TEXT("/Game/")))
-	{
-		OutError = FString::Printf(TEXT("Asset path must start with /Game/. Got: %s"), *AssetPath);
-		return false;
-	}
-	return true;
-}
 
 UEdGraph* ClaireonTool_GetBlueprintGraph::FindGraphByName(const UBlueprint* Blueprint, const FString& GraphName, FString& OutError)
 {

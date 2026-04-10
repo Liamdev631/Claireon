@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_FormatBlueprintGraph.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "ClaireonBlueprintHelpers.h"
 #include "Engine/Blueprint.h"
@@ -75,14 +76,16 @@ IClaireonTool::FToolResult ClaireonTool_FormatBlueprintGraph::Execute(const TSha
 	FString GraphName = TEXT("EventGraph");
 	Arguments->TryGetStringField(TEXT("graph_name"), GraphName);
 
-	// Validate asset path
-	FString Error;
-	if (!ClaireonBlueprintHelpers::ValidateAssetPath(AssetPath, Error))
+	// Resolve asset path
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(Error);
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	// Load Blueprint
+	FString Error;
 	UBlueprint* Blueprint = LoadBlueprintFromPath(AssetPath, Error);
 	if (!Blueprint)
 	{

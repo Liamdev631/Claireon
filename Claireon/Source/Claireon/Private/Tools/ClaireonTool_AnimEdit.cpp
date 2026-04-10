@@ -6,6 +6,7 @@
 #include "Tools/ClaireonPropertyUtils.h"
 #include "Tools/ClaireonAssetUtils.h"
 #include "ClaireonLog.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimMontage.h"
@@ -410,12 +411,13 @@ FToolResult ClaireonTool_AnimEdit::Operation_Open(const TSharedPtr<FJsonObject>&
 		return MakeErrorResult(TEXT("Missing required parameter: asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	FString AssetType, Error;
 	UAnimSequenceBase* Anim = ClaireonAnimHelpers::LoadAnimAsset(AssetPath, AssetType, Error);

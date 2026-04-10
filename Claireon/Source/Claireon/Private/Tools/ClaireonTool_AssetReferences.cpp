@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_AssetReferences.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -76,18 +77,23 @@ IClaireonTool::FToolResult ClaireonTool_AssetReferences::Execute(const TSharedPt
 	int32 DepthLimit = 5;
 	Arguments->TryGetNumberField(TEXT("depth_limit"), DepthLimit);
 
+	// Resolve asset path
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
+	{
+		return MakeErrorResult(ResolveResult.Error);
+	}
+	FString PackageNameStr = ResolveResult.ResolvedPath.Path;
+
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
 
-	// Convert asset path to package name
-	FName PackageName = FName(*AssetPath);
-	FString PackageNameStr = AssetPath;
-	// Strip asset name suffix if present (e.g. /Game/Foo.Foo -> /Game/Foo)
+	// Post-resolver: strip sub-object reference for package name lookup
 	int32 DotIndex;
 	if (PackageNameStr.FindChar(TEXT('.'), DotIndex))
 	{
 		PackageNameStr = PackageNameStr.Left(DotIndex);
-		PackageName = FName(*PackageNameStr);
 	}
+	FName PackageName = FName(*PackageNameStr);
 
 	// Validate the asset exists
 	TOptional<FAssetPackageData> PackageData = AssetRegistry.GetAssetPackageDataCopy(PackageName);

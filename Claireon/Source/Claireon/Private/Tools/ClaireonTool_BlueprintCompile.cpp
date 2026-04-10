@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Tools/ClaireonTool_BlueprintCompile.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonLog.h"
 
 #include "AssetRegistry/AssetData.h"
@@ -151,51 +152,6 @@ static TSharedPtr<FJsonObject> CompileOneBlueprint(
 	return ResultObj;
 }
 
-// Normalize a user-supplied path into a /Game/... content path.
-// Accepts: "/Game/Foo/BP_Bar", "Game/Foo/BP_Bar", "Content/Foo/BP_Bar",
-//          "D:/proj/Content/Foo/BP_Bar", or relative "Foo/BP_Bar" (treated as /Game/Foo/BP_Bar).
-static FString NormalizeToContentPath(const FString& InPath)
-{
-	FString Path = InPath;
-	Path.TrimStartAndEndInline();
-	FPaths::NormalizeDirectoryName(Path);
-
-	// Already a content path
-	if (Path.StartsWith(TEXT("/Game/")) || Path == TEXT("/Game"))
-	{
-		return Path;
-	}
-
-	// Strip leading slash for easier matching
-	if (Path.StartsWith(TEXT("/")))
-	{
-		// Could be /Engine, /Script, etc. — pass through as-is
-		return Path;
-	}
-
-	// Absolute filesystem path — find "Content/" and map to /Game/
-	int32 ContentIdx = Path.Find(TEXT("Content/"), ESearchCase::IgnoreCase);
-	if (ContentIdx != INDEX_NONE)
-	{
-		FString Remainder = Path.Mid(ContentIdx + 8); // skip "Content/"
-		return TEXT("/Game/") + Remainder;
-	}
-	// Also handle "Content" at the very end (folder path)
-	if (Path.EndsWith(TEXT("Content"), ESearchCase::IgnoreCase))
-	{
-		return TEXT("/Game");
-	}
-
-	// "Game/Foo/Bar" without leading slash
-	if (Path.StartsWith(TEXT("Game/"), ESearchCase::IgnoreCase))
-	{
-		return TEXT("/") + Path;
-	}
-
-	// Bare relative path — assume relative to /Game/
-	return TEXT("/Game/") + Path;
-}
-
 static bool IsBlueprintAssetClass(const FString& ClassName)
 {
 	return ClassName == TEXT("Blueprint")
@@ -255,10 +211,14 @@ IClaireonTool::FToolResult ClaireonTool_BlueprintCompile::Execute(const TSharedP
 		const TArray<TSharedPtr<FJsonValue>>& PathsArray = Arguments->GetArrayField(TEXT("paths"));
 		for (const TSharedPtr<FJsonValue>& Val : PathsArray)
 		{
-			FString Normalized = NormalizeToContentPath(Val->AsString());
-			if (!Normalized.IsEmpty())
+			auto ResolveResult = ClaireonPathResolver::Resolve(Val->AsString());
+			if (ResolveResult.bSuccess)
 			{
-				InputPaths.Add(Normalized);
+				InputPaths.Add(ResolveResult.ResolvedPath.Path);
+			}
+			else
+			{
+				UE_LOG(LogClaireon, Warning, TEXT("Skipping invalid path: %s"), *ResolveResult.Error);
 			}
 		}
 	}

@@ -21,6 +21,7 @@
 #include "UObject/Package.h"
 #include "FileHelpers.h"
 #include "Editor.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 
 // Using statements
@@ -467,12 +468,13 @@ FToolResult ClaireonTool_StateTreeEdit::Operation_Open(const TSharedPtr<FJsonObj
 		return MakeErrorResult(TEXT("Missing required parameter: asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	FString Error;
 	UStateTree* StateTree = ClaireonStateTreeHelpers::LoadStateTreeAsset(AssetPath, Error);

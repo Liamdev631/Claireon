@@ -4,6 +4,7 @@
 #include "Tools/ClaireonTool_EQSEdit.h"
 #include "Tools/ClaireonBehaviorTreeHelpers.h"
 #include "ClaireonLog.h"
+#include "ClaireonPathResolver.h"
 #include "ClaireonSessionManager.h"
 #include "EnvironmentQuery/EnvQuery.h"
 #include "EnvironmentQuery/EnvQueryOption.h"
@@ -320,12 +321,13 @@ FToolResult ClaireonTool_EQSEdit::Operation_Open(const TSharedPtr<FJsonObject>& 
 		return MakeErrorResult(TEXT("'open' requires params.asset_path"));
 	}
 
-	// Canonicalize path early to prevent malformed paths from reaching LoadObject
-	AssetPath = FClaireonSessionManager::CanonicalizePath(AssetPath);
-	if (AssetPath.IsEmpty())
+	// Resolve path to canonical form
+	auto ResolveResult = ClaireonPathResolver::Resolve(AssetPath);
+	if (!ResolveResult.bSuccess)
 	{
-		return MakeErrorResult(TEXT("Invalid asset path. Path must start with /Game/."));
+		return MakeErrorResult(ResolveResult.Error);
 	}
+	AssetPath = ResolveResult.ResolvedPath.Path;
 
 	FString Error;
 	UEnvQuery* Query = ClaireonBehaviorTreeHelpers::LoadEQSAsset(AssetPath, Error);
