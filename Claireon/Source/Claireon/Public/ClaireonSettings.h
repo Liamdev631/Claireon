@@ -176,11 +176,11 @@ public:
         meta=(DisplayName="Enable Auto-Save"))
     bool bEnableAutoSave = true;
 
-    /** Save dirty packages before each Python execution. */
+    /** Save dirty packages before each Python execution. Setting this to true will attempt to save assets nearly every time the MCP server is used. Defaulting to false as of April 9, 2026 since this would be perhaps surprising new behavior rather than a helpful default. If this changes let's switch it! */
     UPROPERTY(Config, EditAnywhere, Category="Auto-Save",
         meta=(DisplayName="Auto-Save Before Python Execution",
               EditCondition="bEnableAutoSave"))
-    bool bAutoSaveBeforePythonExecution = true;
+    bool bAutoSaveBeforePythonExecution = false;
 
     /** Save dirty packages before deferred world-transition actions (map load, PIE start, etc.). */
     UPROPERTY(Config, EditAnywhere, Category="Auto-Save",
