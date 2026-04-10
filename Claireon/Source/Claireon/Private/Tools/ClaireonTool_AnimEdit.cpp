@@ -70,8 +70,9 @@ FString ClaireonTool_AnimEdit::GetFullDescription() const
 				"Session operations: open, close, get_state, save\n"
 				"Notify operations: add_notify, remove_notify, move_notify, duplicate_notify, set_notify_property, get_notify_property, list_notify_properties, add_notify_track, remove_notify_track, rename_notify_track, reorder_notify_track\n"
 				"Curve operations: add_curve, remove_curve, add_curve_key, remove_curve_key, set_curve_key_property\n"
-				"Montage section operations (montage only): add_section, remove_section, set_section_link\n"
-				"Montage slot/segment operations (montage only): add_segment, remove_segment, set_segment_property, add_slot, remove_slot, set_slot_property\n"
+				"Montage section operations (montage only): add_section, remove_section, set_section_link, set_section_link_method\n"
+				"Montage slot/segment operations (montage only): add_segment, remove_segment, set_segment_property, inspect_segment, retime_segment, add_slot, remove_slot, set_slot_property\n"
+				"Montage batch operations: batch_retime_animation\n"
 				"Modifier operations (AnimSequence only): list_modifiers, add_modifier, remove_modifier, apply_modifier, revert_modifier\n"
 				"Metadata operations: list_metadata, add_metadata, remove_metadata, set_metadata_property\n"
 				"Property operations: set_property\n\n"
@@ -125,12 +126,16 @@ TSharedPtr<FJsonObject> ClaireonTool_AnimEdit::GetInputSchema() const
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_section")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_section")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_section_link")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_section_link_method")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_segment")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_segment")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_segment_property")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_slot")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_slot")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("set_slot_property")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("inspect_segment")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("retime_segment")));
+	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("batch_retime_animation")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("list_modifiers")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("add_modifier")));
 	OperationEnum.Add(MakeShared<FJsonValueString>(TEXT("remove_modifier")));
@@ -280,6 +285,8 @@ FToolResult ClaireonTool_AnimEdit::Execute(const TSharedPtr<FJsonObject>& Argume
 		return Operation_RemoveSection(SessionId, Data, Params);
 	if (Operation == TEXT("set_section_link"))
 		return Operation_SetSectionLink(SessionId, Data, Params);
+	if (Operation == TEXT("set_section_link_method"))
+		return Operation_SetSectionLinkMethod(SessionId, Data, Params);
 	if (Operation == TEXT("add_segment"))
 		return Operation_AddSegment(SessionId, Data, Params);
 	if (Operation == TEXT("remove_segment"))
@@ -292,6 +299,12 @@ FToolResult ClaireonTool_AnimEdit::Execute(const TSharedPtr<FJsonObject>& Argume
 		return Operation_RemoveSlot(SessionId, Data, Params);
 	if (Operation == TEXT("set_slot_property"))
 		return Operation_SetSlotProperty(SessionId, Data, Params);
+	if (Operation == TEXT("inspect_segment"))
+		return Operation_InspectSegment(SessionId, Data, Params);
+	if (Operation == TEXT("retime_segment"))
+		return Operation_RetimeSegment(SessionId, Data, Params);
+	if (Operation == TEXT("batch_retime_animation"))
+		return Operation_BatchRetimeAnimation(SessionId, Data, Params);
 
 	// Modifier ops
 	if (Operation == TEXT("list_modifiers"))
@@ -1378,6 +1391,57 @@ FToolResult ClaireonTool_AnimEdit::Operation_SetSectionLink(const FString& Sessi
 	return BuildStateResponse(SessionId, Data);
 }
 
+FToolResult ClaireonTool_AnimEdit::Operation_SetSectionLinkMethod(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	if (Data->AssetType != TEXT("AnimMontage"))
+	{
+		return MakeErrorResult(TEXT("set_section_link_method is only valid for AnimMontage assets"));
+	}
+
+	UAnimMontage* Montage = Cast<UAnimMontage>(Data->Animation.Get());
+	if (!Montage)
+	{
+		return MakeErrorResult(TEXT("Failed to cast to AnimMontage"));
+	}
+
+	FString SectionName;
+	if (!Params->TryGetStringField(TEXT("section_name"), SectionName) || SectionName.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: section_name"));
+	}
+
+	FString MethodStr;
+	if (!Params->TryGetStringField(TEXT("link_method"), MethodStr) || MethodStr.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: link_method (absolute, relative, proportional)"));
+	}
+
+	EAnimLinkMethod::Type DesiredMethod = EAnimLinkMethod::Absolute;
+	FString MethodLower = MethodStr.ToLower();
+	if (MethodLower == TEXT("proportional")) DesiredMethod = EAnimLinkMethod::Proportional;
+	else if (MethodLower == TEXT("relative")) DesiredMethod = EAnimLinkMethod::Relative;
+	else if (MethodLower == TEXT("absolute")) DesiredMethod = EAnimLinkMethod::Absolute;
+	else return MakeErrorResult(FString::Printf(TEXT("Invalid link_method '%s'. Expected: absolute, relative, proportional"), *MethodStr));
+
+	int32 SectionIndex = Montage->GetSectionIndex(FName(*SectionName));
+	if (SectionIndex == INDEX_NONE)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Section '%s' not found"), *SectionName));
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_SetSectionLinkMethod", "MCP: Set Section Link Method"));
+	Montage->Modify();
+
+	Montage->CompositeSections[SectionIndex].ChangeLinkMethod(DesiredMethod);
+
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("set_section_link_method -> %s = %s"), *SectionName, *MethodStr);
+	return BuildStateResponse(SessionId, Data);
+}
+
 // ============================================================================
 // Montage Slot/Segment Operations
 // ============================================================================
@@ -1724,6 +1788,409 @@ FToolResult ClaireonTool_AnimEdit::Operation_SetSlotProperty(const FString& Sess
 
 	Data->LastOperationStatus = FString::Printf(TEXT("set_slot_property -> Renamed slot [%d] '%s' -> '%s'"), SlotIndex, *OldName, *SlotName);
 	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_InspectSegment(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "inspect_segment", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	double SlotIndexD = 0.0;
+	Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD);
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	double SegIndexD = -1.0;
+	if (!Params->TryGetNumberField(TEXT("segment_index"), SegIndexD))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: segment_index"));
+	}
+	int32 SegIndex = static_cast<int32>(SegIndexD);
+
+	const FAnimTrack& Track = Montage->SlotAnimTracks[SlotIndex].AnimTrack;
+	if (SegIndex < 0 || SegIndex >= Track.AnimSegments.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Segment index %d out of range [0, %d)"), SegIndex, Track.AnimSegments.Num()));
+	}
+
+	const FAnimSegment& Seg = Track.AnimSegments[SegIndex];
+	UAnimSequenceBase* AnimRef = Seg.GetAnimReference();
+
+	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+	Result->SetStringField(TEXT("session_id"), SessionId);
+	Result->SetNumberField(TEXT("slot_index"), SlotIndex);
+	Result->SetNumberField(TEXT("segment_index"), SegIndex);
+	Result->SetStringField(TEXT("animation"), AnimRef ? AnimRef->GetPathName() : TEXT("None"));
+	Result->SetStringField(TEXT("animation_name"), AnimRef ? AnimRef->GetName() : TEXT("None"));
+	Result->SetNumberField(TEXT("start_pos"), Seg.StartPos);
+	Result->SetNumberField(TEXT("anim_start_time"), Seg.AnimStartTime);
+	Result->SetNumberField(TEXT("anim_end_time"), Seg.AnimEndTime);
+	Result->SetNumberField(TEXT("play_rate"), Seg.AnimPlayRate);
+	Result->SetNumberField(TEXT("looping_count"), Seg.LoopingCount);
+	Result->SetNumberField(TEXT("duration"), Seg.GetLength());
+	Result->SetNumberField(TEXT("end_pos"), Seg.StartPos + Seg.GetLength());
+	Result->SetNumberField(TEXT("source_length"), AnimRef ? AnimRef->GetPlayLength() : 0.0f);
+
+	// Find notifies linked to this segment
+	TArray<TSharedPtr<FJsonValue>> NotifyArray;
+	for (int32 n = 0; n < Montage->Notifies.Num(); ++n)
+	{
+		const FAnimNotifyEvent& Notify = Montage->Notifies[n];
+		if (Notify.GetSlotIndex() == SlotIndex && Notify.GetSegmentIndex() == SegIndex)
+		{
+			TSharedPtr<FJsonObject> NotifyObj = MakeShared<FJsonObject>();
+			NotifyObj->SetNumberField(TEXT("notify_index"), n);
+			NotifyObj->SetStringField(TEXT("name"), Notify.NotifyName.ToString());
+			NotifyObj->SetNumberField(TEXT("time"), Notify.GetTime());
+			if (Notify.NotifyStateClass)
+			{
+				NotifyObj->SetNumberField(TEXT("duration"), Notify.GetDuration());
+				NotifyObj->SetStringField(TEXT("class"), Notify.NotifyStateClass->GetClass()->GetName());
+			}
+			else if (Notify.Notify)
+			{
+				NotifyObj->SetStringField(TEXT("class"), Notify.Notify->GetClass()->GetName());
+			}
+			// Show link method
+			switch (Notify.GetLinkMethod())
+			{
+				case EAnimLinkMethod::Absolute: NotifyObj->SetStringField(TEXT("link_method"), TEXT("absolute")); break;
+				case EAnimLinkMethod::Relative: NotifyObj->SetStringField(TEXT("link_method"), TEXT("relative")); break;
+				case EAnimLinkMethod::Proportional: NotifyObj->SetStringField(TEXT("link_method"), TEXT("proportional")); break;
+			}
+			NotifyArray.Add(MakeShared<FJsonValueObject>(NotifyObj));
+		}
+	}
+	Result->SetArrayField(TEXT("notifies"), NotifyArray);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("inspect_segment -> slot [%d] segment [%d]: %s (%.3fs-%.3fs)"),
+		SlotIndex, SegIndex, AnimRef ? *AnimRef->GetName() : TEXT("None"), Seg.StartPos, Seg.StartPos + Seg.GetLength());
+	Result->SetStringField(TEXT("status"), Data->LastOperationStatus);
+	return MakeSuccessResult(Result, Data->LastOperationStatus);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_RetimeSegment(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString Error;
+	UAnimMontage* Montage = GetMontageOrError(Data, "retime_segment", Error);
+	if (!Montage) return MakeErrorResult(Error);
+
+	double SlotIndexD = 0.0;
+	Params->TryGetNumberField(TEXT("slot_index"), SlotIndexD);
+	int32 SlotIndex = static_cast<int32>(SlotIndexD);
+
+	if (SlotIndex < 0 || SlotIndex >= Montage->SlotAnimTracks.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Slot index %d out of range [0, %d)"), SlotIndex, Montage->SlotAnimTracks.Num()));
+	}
+
+	double SegIndexD = -1.0;
+	if (!Params->TryGetNumberField(TEXT("segment_index"), SegIndexD))
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: segment_index"));
+	}
+	int32 SegIndex = static_cast<int32>(SegIndexD);
+
+	FAnimTrack& Track = Montage->SlotAnimTracks[SlotIndex].AnimTrack;
+	if (SegIndex < 0 || SegIndex >= Track.AnimSegments.Num())
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Segment index %d out of range [0, %d)"), SegIndex, Track.AnimSegments.Num()));
+	}
+
+	FAnimSegment& Seg = Track.AnimSegments[SegIndex];
+
+	// Capture old timing
+	float OldStartPos = Seg.StartPos;
+	float OldLength = Seg.GetLength();
+
+	// Apply the requested change
+	double NewEndTime = -1.0, NewDuration = -1.0, NewPlayRate = -1.0;
+	Params->TryGetNumberField(TEXT("new_end_time"), NewEndTime);
+	Params->TryGetNumberField(TEXT("new_duration"), NewDuration);
+	Params->TryGetNumberField(TEXT("new_play_rate"), NewPlayRate);
+
+	if (NewEndTime < 0.0 && NewDuration < 0.0 && NewPlayRate < 0.0)
+	{
+		return MakeErrorResult(TEXT("At least one of new_end_time, new_duration, or new_play_rate is required"));
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_RetimeSegment", "MCP: Retime Montage Segment"));
+	Montage->Modify();
+
+	if (NewEndTime >= 0.0)
+	{
+		Seg.AnimEndTime = static_cast<float>(NewEndTime);
+	}
+	else if (NewPlayRate > 0.0)
+	{
+		Seg.AnimPlayRate = static_cast<float>(NewPlayRate);
+	}
+	else if (NewDuration > 0.0)
+	{
+		// Adjust play rate to achieve desired duration
+		float AnimRange = Seg.AnimEndTime - Seg.AnimStartTime;
+		if (AnimRange > 0.0f)
+		{
+			Seg.AnimPlayRate = (AnimRange * Seg.LoopingCount) / static_cast<float>(NewDuration);
+		}
+	}
+
+	float NewLength = Seg.GetLength();
+	float LengthRatio = (OldLength > 0.0f) ? (NewLength / OldLength) : 1.0f;
+
+	// Notify retiming mode:
+	//   "manual" (default) — proportionally scale contained notifies ourselves
+	//   "proportional" — change link method to Proportional, let engine auto-scale
+	//   "relative" — change link method to Relative (move with segment start, don't scale)
+	//   "absolute" — change link method to Absolute (don't move at all)
+	//   "none" / false — don't touch notifies
+	FString NotifyMode = TEXT("manual");
+	{
+		bool bRetimeNotifies = true;
+		if (Params->TryGetBoolField(TEXT("retime_notifies"), bRetimeNotifies) && !bRetimeNotifies)
+		{
+			NotifyMode = TEXT("none");
+		}
+		FString ModeStr;
+		if (Params->TryGetStringField(TEXT("notify_link_method"), ModeStr))
+		{
+			NotifyMode = ModeStr.ToLower();
+		}
+	}
+
+	if (NotifyMode != TEXT("none") && FMath::Abs(LengthRatio - 1.0f) > KINDA_SMALL_NUMBER)
+	{
+		float OldSegEnd = OldStartPos + OldLength;
+
+		if (NotifyMode == TEXT("proportional") || NotifyMode == TEXT("relative") || NotifyMode == TEXT("absolute"))
+		{
+			// Change link method only on notifies fully contained within this segment
+			EAnimLinkMethod::Type DesiredMethod = EAnimLinkMethod::Absolute;
+			if (NotifyMode == TEXT("proportional")) DesiredMethod = EAnimLinkMethod::Proportional;
+			else if (NotifyMode == TEXT("relative")) DesiredMethod = EAnimLinkMethod::Relative;
+
+			for (FAnimNotifyEvent& Notify : Montage->Notifies)
+			{
+				float NotifyStart = Notify.GetTime();
+				float NotifyEnd = Notify.NotifyStateClass ? (NotifyStart + Notify.GetDuration()) : NotifyStart;
+				if (NotifyStart < OldStartPos - KINDA_SMALL_NUMBER || NotifyEnd > OldSegEnd + KINDA_SMALL_NUMBER)
+				{
+					continue;
+				}
+				if (Notify.GetLinkMethod() != DesiredMethod)
+				{
+					Notify.ChangeLinkMethod(DesiredMethod);
+				}
+			}
+		}
+		else // "manual" — proportionally scale contained notifies ourselves
+		{
+			for (FAnimNotifyEvent& Notify : Montage->Notifies)
+			{
+				float NotifyStart = Notify.GetTime();
+				float NotifyEnd = Notify.NotifyStateClass ? (NotifyStart + Notify.GetDuration()) : NotifyStart;
+
+				// Only retime notifies fully contained within this segment's old time range
+				if (NotifyStart < OldStartPos - KINDA_SMALL_NUMBER || NotifyEnd > OldSegEnd + KINDA_SMALL_NUMBER)
+				{
+					continue;
+				}
+
+				float RelativePos = (OldLength > 0.0f) ? (NotifyStart - OldStartPos) / OldLength : 0.0f;
+				Notify.SetTime(OldStartPos + RelativePos * NewLength);
+
+				if (Notify.NotifyStateClass && Notify.GetDuration() > 0.0f)
+				{
+					Notify.SetDuration(Notify.GetDuration() * LengthRatio);
+				}
+			}
+		}
+	}
+
+	Track.CollapseAnimSegments();
+	Montage->UpdateLinkableElements();
+	Montage->PostEditChange();
+	Montage->MarkPackageDirty();
+	ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("retime_segment -> slot [%d] segment [%d]: %.3fs -> %.3fs (ratio: %.3f, notify_mode: %s)"),
+		SlotIndex, SegIndex, OldLength, NewLength, LengthRatio, *NotifyMode);
+	return BuildStateResponse(SessionId, Data);
+}
+
+FToolResult ClaireonTool_AnimEdit::Operation_BatchRetimeAnimation(const FString& SessionId, FAnimEditToolData* Data, const TSharedPtr<FJsonObject>& Params)
+{
+	FString AnimPath;
+	if (!Params->TryGetStringField(TEXT("anim_path"), AnimPath) || AnimPath.IsEmpty())
+	{
+		return MakeErrorResult(TEXT("Missing required parameter: anim_path"));
+	}
+
+	UAnimSequenceBase* TargetAnim = LoadObject<UAnimSequenceBase>(nullptr, *AnimPath);
+	if (!TargetAnim)
+	{
+		return MakeErrorResult(FString::Printf(TEXT("Failed to load animation: %s"), *AnimPath));
+	}
+
+	float CurrentAnimLength = TargetAnim->GetPlayLength();
+
+	double NewLengthD = -1.0;
+	Params->TryGetNumberField(TEXT("new_length"), NewLengthD);
+	float NewLength = (NewLengthD > 0.0) ? static_cast<float>(NewLengthD) : CurrentAnimLength;
+
+	double OldLengthD = -1.0;
+	Params->TryGetNumberField(TEXT("old_length"), OldLengthD);
+	float OldSourceLength = (OldLengthD > 0.0) ? static_cast<float>(OldLengthD) : 0.0f; // 0 = auto-detect from segment
+
+	// Notify mode: same options as retime_segment
+	FString NotifyMode = TEXT("manual");
+	{
+		bool bRetimeNotifies = true;
+		if (Params->TryGetBoolField(TEXT("retime_notifies"), bRetimeNotifies) && !bRetimeNotifies)
+		{
+			NotifyMode = TEXT("none");
+		}
+		FString ModeStr;
+		if (Params->TryGetStringField(TEXT("notify_link_method"), ModeStr))
+		{
+			NotifyMode = ModeStr.ToLower();
+		}
+	}
+
+	// Use GetReferencers to find only montages that actually reference this animation
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	FName AnimPackageName = TargetAnim->GetOutermost()->GetFName();
+
+	TArray<FAssetIdentifier> Referencers;
+	AssetRegistry.GetReferencers(FAssetIdentifier(AnimPackageName), Referencers, UE::AssetRegistry::EDependencyCategory::Package);
+
+	int32 MontagesUpdated = 0;
+	int32 SegmentsUpdated = 0;
+	TArray<TSharedPtr<FJsonValue>> UpdatedMontages;
+
+	for (const FAssetIdentifier& Ref : Referencers)
+	{
+		// Only load if it's a montage — check asset data first
+		TArray<FAssetData> AssetsInPackage;
+		AssetRegistry.GetAssetsByPackageName(Ref.PackageName, AssetsInPackage);
+
+		for (const FAssetData& AssetData : AssetsInPackage)
+		{
+			if (!AssetData.AssetClassPath.GetAssetName().ToString().Contains(TEXT("AnimMontage")))
+			{
+				continue;
+			}
+
+			UAnimMontage* Montage = Cast<UAnimMontage>(AssetData.GetAsset());
+			if (!Montage) continue;
+
+			bool bMontageModified = false;
+
+			FScopedTransaction Transaction(NSLOCTEXT("Claireon", "AnimEdit_BatchRetime", "MCP: Batch Retime Animation"));
+			Montage->Modify();
+
+			for (int32 SlotIdx = 0; SlotIdx < Montage->SlotAnimTracks.Num(); ++SlotIdx)
+			{
+				FAnimTrack& Track = Montage->SlotAnimTracks[SlotIdx].AnimTrack;
+				for (int32 SegIdx = 0; SegIdx < Track.AnimSegments.Num(); ++SegIdx)
+				{
+					FAnimSegment& Seg = Track.AnimSegments[SegIdx];
+					if (Seg.GetAnimReference() != TargetAnim) continue;
+
+					float OldStartPos = Seg.StartPos;
+					float OldLength = Seg.GetLength();
+
+					// Scale AnimEndTime proportionally rather than replacing it
+					// This preserves trims: if segment was trimmed to 80% of old source, it stays at 80% of new source
+					float EffectiveOldSource = (OldSourceLength > 0.0f) ? OldSourceLength : Seg.AnimEndTime;
+					float ScaleRatio = (EffectiveOldSource > 0.0f) ? (NewLength / EffectiveOldSource) : 1.0f;
+					Seg.AnimEndTime *= ScaleRatio;
+					Seg.AnimStartTime *= ScaleRatio;
+
+					float NewSegLength = Seg.GetLength();
+					float LengthRatio = (OldLength > 0.0f) ? (NewSegLength / OldLength) : 1.0f;
+
+					// Retime contained notifies
+					if (NotifyMode != TEXT("none") && FMath::Abs(LengthRatio - 1.0f) > KINDA_SMALL_NUMBER)
+					{
+						float OldSegEnd = OldStartPos + OldLength;
+
+						if (NotifyMode == TEXT("proportional") || NotifyMode == TEXT("relative") || NotifyMode == TEXT("absolute"))
+						{
+							EAnimLinkMethod::Type DesiredMethod = EAnimLinkMethod::Absolute;
+							if (NotifyMode == TEXT("proportional")) DesiredMethod = EAnimLinkMethod::Proportional;
+							else if (NotifyMode == TEXT("relative")) DesiredMethod = EAnimLinkMethod::Relative;
+
+							for (FAnimNotifyEvent& Notify : Montage->Notifies)
+							{
+								float NotifyStart = Notify.GetTime();
+								float NotifyEnd = Notify.NotifyStateClass ? (NotifyStart + Notify.GetDuration()) : NotifyStart;
+								if (NotifyStart < OldStartPos - KINDA_SMALL_NUMBER || NotifyEnd > OldSegEnd + KINDA_SMALL_NUMBER)
+									continue;
+								if (Notify.GetLinkMethod() != DesiredMethod)
+									Notify.ChangeLinkMethod(DesiredMethod);
+							}
+						}
+						else // manual
+						{
+							for (FAnimNotifyEvent& Notify : Montage->Notifies)
+							{
+								float NotifyStart = Notify.GetTime();
+								float NotifyEnd = Notify.NotifyStateClass ? (NotifyStart + Notify.GetDuration()) : NotifyStart;
+								if (NotifyStart < OldStartPos - KINDA_SMALL_NUMBER || NotifyEnd > OldSegEnd + KINDA_SMALL_NUMBER)
+									continue;
+
+								float RelativePos = (OldLength > 0.0f) ? (NotifyStart - OldStartPos) / OldLength : 0.0f;
+								Notify.SetTime(OldStartPos + RelativePos * NewSegLength);
+								if (Notify.NotifyStateClass && Notify.GetDuration() > 0.0f)
+									Notify.SetDuration(Notify.GetDuration() * LengthRatio);
+							}
+						}
+					}
+
+					bMontageModified = true;
+					SegmentsUpdated++;
+				}
+
+				if (bMontageModified)
+				{
+					Track.CollapseAnimSegments();
+				}
+			}
+
+			if (bMontageModified)
+			{
+				Montage->UpdateLinkableElements();
+				Montage->PostEditChange();
+				Montage->MarkPackageDirty();
+				ClaireonAssetUtils::RefreshAssetEditorIfOpen(Montage);
+				MontagesUpdated++;
+
+				TSharedPtr<FJsonObject> Entry = MakeShared<FJsonObject>();
+				Entry->SetStringField(TEXT("montage_path"), Montage->GetPathName());
+				Entry->SetStringField(TEXT("montage_name"), Montage->GetName());
+				UpdatedMontages.Add(MakeShared<FJsonValueObject>(Entry));
+			}
+		}
+	}
+
+	TSharedPtr<FJsonObject> Result = MakeShared<FJsonObject>();
+	Result->SetStringField(TEXT("session_id"), SessionId);
+	Result->SetStringField(TEXT("anim_path"), AnimPath);
+	Result->SetNumberField(TEXT("new_length"), NewLength);
+	Result->SetNumberField(TEXT("montages_updated"), MontagesUpdated);
+	Result->SetNumberField(TEXT("segments_updated"), SegmentsUpdated);
+	Result->SetArrayField(TEXT("updated_montages"), UpdatedMontages);
+
+	Data->LastOperationStatus = FString::Printf(TEXT("batch_retime_animation -> Updated %d segment(s) in %d montage(s) for '%s' (new length: %.3fs)"),
+		SegmentsUpdated, MontagesUpdated, *TargetAnim->GetName(), NewLength);
+	Result->SetStringField(TEXT("status"), Data->LastOperationStatus);
+	return MakeSuccessResult(Result, Data->LastOperationStatus);
 }
 
 // ============================================================================

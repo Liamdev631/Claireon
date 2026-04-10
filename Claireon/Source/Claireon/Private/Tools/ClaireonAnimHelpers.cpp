@@ -381,6 +381,31 @@ FString ClaireonAnimHelpers::FormatMontageSlots(const UAnimMontage* Montage)
 			const FString AnimName = Seg.GetAnimReference() ? Seg.GetAnimReference()->GetName() : TEXT("None");
 			Output += FString::Printf(TEXT("    [%d] %s @ %.3fs (%.3fs)\n"),
 				j, *AnimName, Seg.StartPos, Seg.GetLength());
+			Output += FString::Printf(TEXT("        AnimRange: %.3fs - %.3fs | PlayRate: %.1f | Loops: %d\n"),
+				Seg.AnimStartTime, Seg.AnimEndTime, Seg.AnimPlayRate, Seg.LoopingCount);
+
+			// Show notifies linked to this segment
+			TArray<FString> SegNotifies;
+			for (int32 n = 0; n < Montage->Notifies.Num(); ++n)
+			{
+				const FAnimNotifyEvent& Notify = Montage->Notifies[n];
+				if (Notify.GetSlotIndex() == i && Notify.GetSegmentIndex() == j)
+				{
+					const FString NotifyName = Notify.NotifyName.ToString();
+					if (Notify.NotifyStateClass)
+					{
+						SegNotifies.Add(FString::Printf(TEXT("[%d] %s @ %.3fs-%.3fs"), n, *NotifyName, Notify.GetTime(), Notify.GetTime() + Notify.GetDuration()));
+					}
+					else
+					{
+						SegNotifies.Add(FString::Printf(TEXT("[%d] %s @ %.3fs"), n, *NotifyName, Notify.GetTime()));
+					}
+				}
+			}
+			if (SegNotifies.Num() > 0)
+			{
+				Output += FString::Printf(TEXT("        Notifies: %s\n"), *FString::Join(SegNotifies, TEXT(", ")));
+			}
 		}
 	}
 
