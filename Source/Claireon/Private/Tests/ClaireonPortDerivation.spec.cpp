@@ -22,6 +22,10 @@
 #include "ClaireonPortDerivation.h"
 
 #include "CoreMinimal.h"
+#include "Misc/Paths.h"
+
+// Forward-declare the test seam defined in ClaireonModule.cpp.
+extern uint32 Claireon_Test_ResolveLivePortFallback();
 
 namespace
 {
@@ -95,6 +99,22 @@ UNTEST_UNIT_OPTS(Claireon, PortDerivation, Deterministic, UNTEST_TIMEOUTMS(2000)
 	const uint16 Third = Claireon::DeriveDefaultMcpPort(TEXT("W:\\yara"));
 	UNTEST_ASSERT_EQ(static_cast<int32>(First), static_cast<int32>(Second));
 	UNTEST_ASSERT_EQ(static_cast<int32>(First), static_cast<int32>(Third));
+	co_return;
+}
+
+// ---------------------------------------------------------------------------
+// ResolveLivePort fallback: when no server is running and no port file
+// exists on disk, must return DeriveDefaultMcpPort(ProjectDir), not 8017.
+// ---------------------------------------------------------------------------
+
+UNTEST_UNIT_OPTS(Claireon, PortDerivation, ResolveLivePortFallback, UNTEST_TIMEOUTMS(2000))
+{
+	const uint32 Resolved = Claireon_Test_ResolveLivePortFallback();
+	const FString WorktreeRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+	const uint32 Expected = static_cast<uint32>(Claireon::DeriveDefaultMcpPort(WorktreeRoot));
+	// Must equal the SHA-derived port, not the old hardcoded 8017.
+	UNTEST_ASSERT_NE(static_cast<int32>(Resolved), 8017);
+	UNTEST_ASSERT_EQ(static_cast<int32>(Resolved), static_cast<int32>(Expected));
 	co_return;
 }
 

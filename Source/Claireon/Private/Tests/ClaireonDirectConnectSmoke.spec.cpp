@@ -35,13 +35,16 @@
 #include "CoreMinimal.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
 #include "HttpManager.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "Math/RandomStream.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Guid.h"
+#include "Misc/Paths.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
@@ -363,6 +366,144 @@ UNTEST_UNIT_OPTS(Claireon, DirectConnect, SmokePortReleased, UNTEST_TIMEOUTMS(10
 	UNTEST_ASSERT_TRUE(Second->Start(BoundFirst));
 	UNTEST_ASSERT_EQ(Second->GetPort(), BoundFirst);
 	Second->Stop();
+	co_return;
+}
+
+// ---------------------------------------------------------------------------
+// WritePortFile schema: JSON contains publicPort, mode, and preserves port/pid.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+	/**
+	 * Read and parse the Claireon port file. Returns nullptr if the file does
+	 * not exist or is not valid JSON. Named with file-local prefix to avoid
+	 * unity-build anon-NS collisions.
+	 */
+	TSharedPtr<FJsonObject> DirectConnectSmoke_ReadPortFileJson()
+	{
+		const FString PortFilePath = FPaths::Combine(
+			FPaths::ProjectSavedDir(), TEXT("Claireon"), TEXT("MCPServer.json"));
+		FString Contents;
+		if (!FFileHelper::LoadFileToString(Contents, *PortFilePath))
+		{
+			return nullptr;
+		}
+		TSharedPtr<FJsonObject> Out;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Contents);
+		if (!FJsonSerializer::Deserialize(Reader, Out) || !Out.IsValid())
+		{
+			return nullptr;
+		}
+		return Out;
+	}
+
+	/**
+	 * Delete the Claireon port file if it exists (test cleanup helper).
+	 * Named with file-local prefix to avoid unity-build anon-NS collisions.
+	 */
+	void DirectConnectSmoke_DeletePortFile()
+	{
+		const FString PortFilePath = FPaths::Combine(
+			FPaths::ProjectSavedDir(), TEXT("Claireon"), TEXT("MCPServer.json"));
+		if (FPaths::FileExists(PortFilePath))
+		{
+			IFileManager::Get().Delete(*PortFilePath);
+		}
+	}
+} // namespace
+
+// ---------------------------------------------------------------------------
+// WritePortFile direct mode: JSON has port/pid preserved, publicPort == port,
+// mode == "direct".
+// ---------------------------------------------------------------------------
+
+UNTEST_UNIT_OPTS(Claireon, DirectConnect, WritePortFileDirect, UNTEST_TIMEOUTMS(5000))
+{
+	DirectConnectSmoke_DeletePortFile();
+
+	auto Server = MakeShared<FClaireonServer>();
+	Server->SetSessionToken(FString());
+	const uint32 Candidate = DirectConnectSmoke_PickEphemeralPort();
+	UNTEST_ASSERT_TRUE(Server->Start(Candidate));
+	const uint16 BoundPort = static_cast<uint16>(Server->GetPort());
+
+	Server->WritePortFile(BoundPort, /*bProxyAttached=*/false);
+
+	const TSharedPtr<FJsonObject> Json = DirectConnectSmoke_ReadPortFileJson();
+	UNTEST_ASSERT_VALID(Json);
+
+	// "port" must equal the bound port.
+	int32 ReadPort = 0;
+	UNTEST_ASSERT_TRUE(Json->TryGetNumberField(TEXT("port"), ReadPort));
+	UNTEST_ASSERT_EQ(ReadPort, static_cast<int32>(BoundPort));
+
+	// "pid" must be present and non-zero.
+	int32 ReadPid = 0;
+	UNTEST_ASSERT_TRUE(Json->TryGetNumberField(TEXT("pid"), ReadPid));
+	UNTEST_ASSERT_GT(ReadPid, 0);
+
+	// "publicPort" must equal port in direct mode.
+	int32 ReadPublicPort = 0;
+	UNTEST_ASSERT_TRUE(Json->TryGetNumberField(TEXT("publicPort"), ReadPublicPort));
+	UNTEST_ASSERT_EQ(ReadPublicPort, ReadPort);
+
+	// "mode" must be "direct".
+	FString ReadMode;
+	UNTEST_ASSERT_TRUE(Json->TryGetStringField(TEXT("mode"), ReadMode));
+	UNTEST_ASSERT_STREQ(ReadMode, TEXT("direct"));
+
+	Server->Stop();
+	DirectConnectSmoke_DeletePortFile();
+	co_return;
+}
+
+// ---------------------------------------------------------------------------
+// WritePortFile proxy mode: publicPort != port, mode == "proxy".
+// ---------------------------------------------------------------------------
+
+UNTEST_UNIT_OPTS(Claireon, DirectConnect, WritePortFileProxy, UNTEST_TIMEOUTMS(5000))
+{
+	DirectConnectSmoke_DeletePortFile();
+
+	// Bind-free: WritePortFile only serializes BoundPort (0 when unstarted)
+	// and pid, so the proxy-mode schema can be verified without a live
+	// listener. Starting a second server back-to-back with the direct-mode
+	// test races the HTTP listener teardown and flakes on port binds.
+	auto Server = MakeShared<FClaireonServer>();
+	Server->SetSessionToken(FString());
+
+	// Simulate proxy mode: effective (SHA) port differs from the (unbound,
+	// zero) ephemeral port.
+	const uint16 ShaPort = 18213;
+
+	Server->WritePortFile(ShaPort, /*bProxyAttached=*/true);
+
+	const TSharedPtr<FJsonObject> Json = DirectConnectSmoke_ReadPortFileJson();
+	UNTEST_ASSERT_VALID(Json);
+
+	// "port" reflects the unbound server's BoundPort (0).
+	int32 ReadPort = -1;
+	UNTEST_ASSERT_TRUE(Json->TryGetNumberField(TEXT("port"), ReadPort));
+	UNTEST_ASSERT_EQ(ReadPort, 0);
+
+	// "pid" must be present and non-zero.
+	int32 ReadPid = 0;
+	UNTEST_ASSERT_TRUE(Json->TryGetNumberField(TEXT("pid"), ReadPid));
+	UNTEST_ASSERT_GT(ReadPid, 0);
+
+	// "publicPort" must equal the SHA port, which differs from bound port.
+	int32 ReadPublicPort = 0;
+	UNTEST_ASSERT_TRUE(Json->TryGetNumberField(TEXT("publicPort"), ReadPublicPort));
+	UNTEST_ASSERT_EQ(ReadPublicPort, static_cast<int32>(ShaPort));
+	UNTEST_ASSERT_NE(ReadPublicPort, ReadPort);
+
+	// "mode" must be "proxy".
+	FString ReadMode;
+	UNTEST_ASSERT_TRUE(Json->TryGetStringField(TEXT("mode"), ReadMode));
+	UNTEST_ASSERT_STREQ(ReadMode, TEXT("proxy"));
+
+	DirectConnectSmoke_DeletePortFile();
 	co_return;
 }
 

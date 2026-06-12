@@ -685,7 +685,7 @@ bool FEditWidgetBPTest_AnimationLifecycle::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	const FString StubMarker = TEXT("is not yet implemented; tracked in the backlog");
+	const FString StubMarker = TEXT("is not yet implemented");
 
 	auto MakeEnvelope = [&](const FString& Op, const TSharedPtr<FJsonObject>& Params) -> TSharedPtr<FJsonObject>
 	{

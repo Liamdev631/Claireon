@@ -124,7 +124,8 @@ bool FClaireonServer::TryStart(uint16 Port)
 
 	LoadMCPContent();
 
-	WritePortFile();
+	// WritePortFile is NOT called here; the module's StartServer calls it after
+	// TryStart returns, once it knows both EffectivePublicPort and the mode.
 
 	UE_LOG(LogClaireon, Display, TEXT("[MCP] Server listening on port %u"), BoundPort);
 	if (SessionToken.IsEmpty())
@@ -255,7 +256,9 @@ bool FClaireonServer::Start(uint32 Port)
 
 	LoadMCPContent();
 
-	WritePortFile();
+	// WritePortFile is NOT called here; callers that go through Start() instead
+	// of TryStart() must call WritePortFile explicitly once EffectivePublicPort
+	// and mode are known.
 
 	UE_LOG(LogClaireon, Display, TEXT("[MCP] Server listening on port %u"), BoundPort);
 	if (SessionToken.IsEmpty())
@@ -1185,7 +1188,7 @@ FString FClaireonServer::SerializeJson(const TSharedPtr<FJsonObject>& JsonObject
 	return OutputString;
 }
 
-void FClaireonServer::WritePortFile() const
+void FClaireonServer::WritePortFile(uint16 EffectivePublicPort, bool bProxyAttached) const
 {
 	FString PortFilePath = GetPortFilePath();
 	FString TempFilePath = PortFilePath + TEXT(".tmp");
@@ -1193,10 +1196,14 @@ void FClaireonServer::WritePortFile() const
 	// Ensure parent directory exists (Saved/Claireon/)
 	IFileManager::Get().MakeDirectory(*FPaths::GetPath(PortFilePath), /*Tree=*/true);
 
-	// Write JSON with port and PID
+	// Write JSON with port, pid, publicPort, and mode.
+	// "port" and "pid" are preserved for legacy readers; "publicPort" and "mode"
+	// are additive fields that let new readers distinguish proxy-attached ingress.
 	TSharedPtr<FJsonObject> PortInfo = MakeShared<FJsonObject>();
 	PortInfo->SetNumberField(TEXT("port"), BoundPort);
 	PortInfo->SetNumberField(TEXT("pid"), FPlatformProcess::GetCurrentProcessId());
+	PortInfo->SetNumberField(TEXT("publicPort"), static_cast<double>(EffectivePublicPort));
+	PortInfo->SetStringField(TEXT("mode"), bProxyAttached ? TEXT("proxy") : TEXT("direct"));
 
 	FString JsonContent = SerializeJson(PortInfo);
 

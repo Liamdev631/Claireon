@@ -841,15 +841,22 @@ namespace ClaireonLaunch
 	}
 
 	/**
-	 * Resolve the live MCP port: prefer the in-process server, fall back to
-	 * Saved/Claireon/MCPServer.json (in case the diagnostics tab hasn't auto-started yet),
-	 * fall back to the default 8017.
+	 * Resolve the live MCP port: prefer the in-process effective ingress port,
+	 * fall back to Saved/Claireon/MCPServer.json (in case the diagnostics tab
+	 * hasn't auto-started yet), fall back to
+	 * Claireon::DeriveDefaultMcpPort(WorktreeRoot) (SHA-derived per-worktree default).
 	 */
 	static uint32 ResolveLivePort()
 	{
 		FClaireonModule& Module = FClaireonModule::Get();
 		if (Module.IsServerRunning())
 		{
+			const uint16 Effective = static_cast<uint16>(Module.GetEffectivePublicPort());
+			if (Effective > 0)
+			{
+				return static_cast<uint32>(Effective);
+			}
+			// Fallback: server running but port not yet captured (startup race).
 			if (FClaireonServer* Server = Module.GetServer())
 			{
 				return Server->GetPort();
@@ -864,7 +871,13 @@ namespace ClaireonLaunch
 			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Contents);
 			if (FJsonSerializer::Deserialize(Reader, Json) && Json.IsValid())
 			{
+				// Prefer publicPort (set by stage 002+); fall back to port for
+				// port files written before the schema update.
 				int32 ParsedPort = 0;
+				if (Json->TryGetNumberField(TEXT("publicPort"), ParsedPort) && ParsedPort > 0)
+				{
+					return static_cast<uint32>(ParsedPort);
+				}
 				if (Json->TryGetNumberField(TEXT("port"), ParsedPort) && ParsedPort > 0)
 				{
 					return static_cast<uint32>(ParsedPort);
@@ -872,7 +885,77 @@ namespace ClaireonLaunch
 			}
 		}
 
-		return 8017;
+		const FString WorktreeRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+		return static_cast<uint32>(Claireon::DeriveDefaultMcpPort(WorktreeRoot));
+	}
+
+	/**
+	 * Build the transient MCP config JSON from an optional existing .mcp.json
+	 * string and the effective port.  Pure function (no I/O) so it can be
+	 * exercised by unit tests without a running editor.
+	 *
+	 * Merges mcpServers entries from ExistingMcpJsonContent (pass empty string
+	 * when absent), skipping the editor keys "claireon" and
+	 * "unreal-editor".  The fresh "claireon" entry is appended last so it
+	 * always wins regardless of what the project .mcp.json contains.
+	 *
+	 * Returns an empty string only if JSON serialization fails (should never
+	 * happen in practice).
+	 */
+	static FString TransientMcpConfig_BuildJson(const FString& ExistingMcpJsonContent, uint32 Port)
+	{
+		const TSharedRef<FJsonObject> Servers = MakeShared<FJsonObject>();
+
+		// Merge non-legacy entries from the project .mcp.json when provided.
+		if (!ExistingMcpJsonContent.IsEmpty())
+		{
+			TSharedPtr<FJsonObject> ProjectJson;
+			TSharedRef<TJsonReader<>> ProjectReader = TJsonReaderFactory<>::Create(ExistingMcpJsonContent);
+			if (FJsonSerializer::Deserialize(ProjectReader, ProjectJson) && ProjectJson.IsValid())
+			{
+				const TSharedPtr<FJsonObject>* ProjectServersPtr = nullptr;
+				if (ProjectJson->TryGetObjectField(TEXT("mcpServers"), ProjectServersPtr)
+					&& ProjectServersPtr && (*ProjectServersPtr).IsValid())
+				{
+					for (const auto& Pair : (*ProjectServersPtr)->Values)
+					{
+						// Skip the editor keys -- they point to a stale port or the
+						// wrong server name.  Project tooling already rewrites stale
+						// .mcp.json entries; the plugin filters only its own known keys.
+						if (Pair.Key == TEXT("claireon")
+							|| Pair.Key == TEXT("unreal-editor"))
+						{
+							continue;
+						}
+						Servers->SetField(Pair.Key, Pair.Value);
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogClaireon, Warning,
+					TEXT("[MCP] Failed to parse project .mcp.json; launching with claireon-only config."));
+			}
+		}
+
+		// claireon entry goes last so it is authoritative even if the project
+		// .mcp.json contained a stale one (which was filtered above, but belt-and-suspenders).
+		const FString McpUrl = FString::Printf(TEXT("http://127.0.0.1:%u/mcp"), Port);
+		const TSharedRef<FJsonObject> ClaireonServer = MakeShared<FJsonObject>();
+		ClaireonServer->SetStringField(TEXT("type"), TEXT("http"));
+		ClaireonServer->SetStringField(TEXT("url"), McpUrl);
+		Servers->SetObjectField(TEXT("claireon"), ClaireonServer);
+
+		const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
+		Root->SetObjectField(TEXT("mcpServers"), Servers);
+
+		FString Out;
+		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+		if (!FJsonSerializer::Serialize(Root, Writer))
+		{
+			return FString();
+		}
+		return Out;
 	}
 
 	/**
@@ -882,21 +965,14 @@ namespace ClaireonLaunch
 	 */
 	static FString WriteTransientMcpConfig(uint32 Port)
 	{
-		const FString McpUrl = FString::Printf(TEXT("http://127.0.0.1:%u/mcp"), Port);
+		// Read the project-root .mcp.json for passthrough entries.  Missing file
+		// is the normal case for a fresh OSS checkout; only a parse error warns.
+		FString ExistingMcpJson;
+		const FString ProjectMcpPath = FPaths::Combine(FPaths::ProjectDir(), TEXT(".mcp.json"));
+		FFileHelper::LoadFileToString(ExistingMcpJson, *ProjectMcpPath);
 
-		const TSharedRef<FJsonObject> UnrealServer = MakeShared<FJsonObject>();
-		UnrealServer->SetStringField(TEXT("type"), TEXT("http"));
-		UnrealServer->SetStringField(TEXT("url"), McpUrl);
-
-		const TSharedRef<FJsonObject> Servers = MakeShared<FJsonObject>();
-		Servers->SetObjectField(TEXT("unreal-editor"), UnrealServer);
-
-		const TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-		Root->SetObjectField(TEXT("mcpServers"), Servers);
-
-		FString Out;
-		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
-		if (!FJsonSerializer::Serialize(Root, Writer))
+		const FString Out = TransientMcpConfig_BuildJson(ExistingMcpJson, Port);
+		if (Out.IsEmpty())
 		{
 			return FString();
 		}
@@ -914,24 +990,33 @@ namespace ClaireonLaunch
 	}
 
 	/**
-	 * Launch Claude Code in a terminal at the project root, configured to
-	 * talk to the running MCP server. Tries Windows Terminal first, falls
-	 * back to PowerShell. Surfaces failures via Slate notification.
+	 * Compose the editor's build identifier (version + configuration) for the
+	 * proxy /editor/register payload. Mirrors the MakeBuildId lambda used by
+	 * StartServer so a recovery re-registration sends the same shape.
 	 */
-	static bool LaunchClaudeCodeFromProjectDir()
+	static FString LaunchComposeBuildId()
+	{
+		return FString::Printf(TEXT("%s-%s"),
+			FApp::GetBuildVersion(),
+			FApp::GetBuildConfiguration() == EBuildConfiguration::Debug ? TEXT("Debug")
+				: FApp::GetBuildConfiguration() == EBuildConfiguration::DebugGame ? TEXT("DebugGame")
+				: FApp::GetBuildConfiguration() == EBuildConfiguration::Development ? TEXT("Development")
+				: FApp::GetBuildConfiguration() == EBuildConfiguration::Shipping ? TEXT("Shipping")
+				: TEXT("Test"));
+	}
+
+	/**
+	 * Write the transient MCP config and spawn the terminal running `claude`
+	 * against the live MCP server. GAME-THREAD ONLY (touches the module, writes
+	 * files, and shows Slate notifications). This is the synchronous tail shared
+	 * by the direct-connect path (called inline) and the proxy-attached path
+	 * (called from the marshalled game-thread success callback). Tries Windows
+	 * Terminal first, falls back to PowerShell. Surfaces failures via Slate
+	 * notification.
+	 */
+	static bool LaunchClaudeCodeTerminal()
 	{
 		const FString ProjectDir = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
-
-		// Editors launched by external tooling (not the build/launch script) don't
-		// pass -StartMCPServer, so the MCP
-		// server is dormant until the user explicitly asks for Claude. Starting
-		// it here means clicking "Claude Code" is sufficient -- the user does not
-		// need to first open the diagnostics tab to bring the server up.
-		FClaireonModule& Module = FClaireonModule::Get();
-		if (!Module.IsServerRunning())
-		{
-			Module.StartServer();
-		}
 
 		const uint32 Port = ResolveLivePort();
 		const FString ConfigPath = WriteTransientMcpConfig(Port);
@@ -967,8 +1052,11 @@ namespace ClaireonLaunch
 		// Inner PowerShell command. Using `claude` from PATH; if it isn't installed
 		// the engineer sees a clear "claude : The term ... is not recognized" message
 		// in the terminal we just opened -- a better UX than a silent failure here.
+		// --strict-mcp-config disables all config sources other than the explicit
+		// --mcp-config file, preventing a stale project .mcp.json claireon entry
+		// from overriding the live port.
 		const FString PwshInner = FString::Printf(
-			TEXT("Set-Location '%s'; claude --mcp-config '%s'%s%s"),
+			TEXT("Set-Location '%s'; claude --mcp-config '%s' --strict-mcp-config%s%s"),
 			*ProjectDirEsc, *ConfigPathEsc, *ExtraFlags, *InitialPromptArg);
 
 		// Resolve a shell via canonical Windows install paths (with PATH fallback).
@@ -1026,7 +1114,165 @@ namespace ClaireonLaunch
 
 		return true;
 	}
+
+	/**
+	 * Off-thread proxy health-check + recovery for the launch button.
+	 *
+	 * Runs ONLY when the editor is proxy-attached (the proxy is the sole MCP
+	 * ingress; the editor's listener is token-gated and ephemeral, so a dead
+	 * proxy means Claude Code cannot connect). The probe and recovery block on
+	 * sockets for several seconds, so they MUST run off the game thread to keep
+	 * the editor responsive.
+	 *
+	 * All parameters are captured BY VALUE on the game thread before dispatch:
+	 * the off-thread lambda touches no module/editor pointers (it constructs a
+	 * fresh, throwaway FClaireonProxyClient -- the module's owned ProxyClient is
+	 * a TUniquePtr driving heartbeats and is NOT thread-safe). Completion is
+	 * marshalled back to the game thread, where the re-entrancy guard is cleared
+	 * and either the terminal is spawned (success) or a failure notification is
+	 * shown (no direct-connect fallback in proxy mode).
+	 */
+	static void LaunchClaudeCodeProxyRecoveryAsync(
+		const FString& WorktreeRoot,
+		int32 EditorMcpPort,
+		const FString& SessionToken,
+		const FString& BuildId)
+	{
+		Async(EAsyncExecution::Thread,
+			[WorktreeRoot, EditorMcpPort, SessionToken, BuildId]()
+			{
+				// Fresh, throwaway client: the module's ProxyClient must never be
+				// touched off the game thread. This temporary holds no session
+				// state the probe/recovery needs (RegisterAndReturnAccepted
+				// populates StartTimeNs internally on first use).
+				FClaireonProxyClient RecoveryClient;
+
+				bool bRecovered = false;
+
+				// 1. Health probe (GET 43017, ~1s). 2. If healthy, confirm the
+				// proxy still holds this worktree's SHA port (idempotent, ~3s).
+				if (RecoveryClient.PingProxyHealth())
+				{
+					bRecovered = RecoveryClient.EnsureWorktreeBound(WorktreeRoot, /*MCPPortHint=*/0);
+				}
+				else
+				{
+					// 3. Proxy is down. Spawn + wait + re-bind + re-register.
+					if (RecoveryClient.EnsureProxyRunning()
+						&& RecoveryClient.EnsureWorktreeBound(WorktreeRoot, /*MCPPortHint=*/0)
+						&& RecoveryClient.RegisterAndReturnAccepted(EditorMcpPort, SessionToken, BuildId))
+					{
+						bRecovered = true;
+					}
+				}
+
+				// Marshal completion back to the game thread.
+				AsyncTask(ENamedThreads::GameThread, [bRecovered]()
+				{
+					// The editor may have begun shutting down while the off-thread
+					// work was in flight. Touch nothing in that case.
+					if (IsEngineExitRequested())
+					{
+						return;
+					}
+
+					FClaireonModule& CompletionModule = FClaireonModule::Get();
+					CompletionModule.SetProxyRecoveryInProgress(false);
+
+					if (bRecovered)
+					{
+						LaunchClaudeCodeTerminal();
+					}
+					else
+					{
+						Notify(LOCTEXT("ClaireonLaunchProxyRecoveryFailed",
+							"MCP proxy recovery failed. Restart it via "
+							"Scripts/Utilities/Start-MCPProxy.ps1 and try again."));
+					}
+				});
+			});
+	}
+
+	/**
+	 * Launch-button entry point. Ensures the MCP server is running, then:
+	 *   - Direct-connect mode: the editor IS the server, so spawn the terminal
+	 *     synchronously (no health check).
+	 *   - Proxy-attached mode: health-check + recover the proxy OFF the game
+	 *     thread (the editor stays responsive), then spawn the terminal on the
+	 *     marshalled game-thread success callback. A re-entrancy guard rejects a
+	 *     second click while recovery is in flight.
+	 */
+	static bool LaunchClaudeCodeFromProjectDir()
+	{
+		// Editors launched by external tooling (not the build/launch script) don't
+		// pass -StartMCPServer, so the MCP server is dormant until the user
+		// explicitly asks for Claude. Starting it here means clicking "Claude
+		// Code" is sufficient -- the user does not need to first open the
+		// diagnostics tab to bring the server up.
+		FClaireonModule& Module = FClaireonModule::Get();
+		if (!Module.IsServerRunning())
+		{
+			Module.StartServer();
+		}
+
+		// Re-entrancy guard (game-thread only): a second click while an async
+		// recovery is in flight is informational and spawns no second task.
+		if (Module.IsProxyRecoveryInProgress())
+		{
+			Notify(LOCTEXT("ClaireonLaunchRecoveryBusy",
+				"Proxy recovery is already in progress. Please wait."));
+			return false;
+		}
+
+		// Direct-connect mode: the editor owns the SHA port and serves MCP
+		// directly. No proxy to health-check; launch synchronously.
+		if (Module.GetMcpMode() != EClaireonMcpMode::ProxyAttached)
+		{
+			return LaunchClaudeCodeTerminal();
+		}
+
+		// Proxy-attached mode: capture everything the off-thread recovery needs
+		// BY VALUE on the game thread, then dispatch. Nothing below is read off
+		// the game thread.
+		const FString WorktreeRoot = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+		int32 EditorMcpPort = 0;
+		FString SessionToken;
+		if (FClaireonServer* Server = Module.GetServer())
+		{
+			EditorMcpPort = static_cast<int32>(Server->GetPort());
+			SessionToken = Server->GetSessionToken();
+		}
+		const FString BuildId = LaunchComposeBuildId();
+
+		Module.SetProxyRecoveryInProgress(true);
+		Notify(LOCTEXT("ClaireonLaunchRecoveryProgress",
+			"Recovering MCP proxy..."), /*Duration=*/ 30.0f);
+
+		LaunchClaudeCodeProxyRecoveryAsync(WorktreeRoot, EditorMcpPort, SessionToken, BuildId);
+		return true;
+	}
 }
+
+// ---------------------------------------------------------------------------
+// Test seam: exposes TransientMcpConfig_BuildJson to unit specs without
+// requiring a running editor or filesystem I/O.
+// ---------------------------------------------------------------------------
+#if WITH_UNTESTED
+FString Claireon_Test_BuildTransientMcpConfigJson(const FString& ExistingMcpJsonContent, uint32 Port)
+{
+	return ClaireonLaunch::TransientMcpConfig_BuildJson(ExistingMcpJsonContent, Port);
+}
+
+// Test seam: exercises the ResolveLivePort() fallback path (no running server,
+// no port file on disk) and returns the result. In commandlet/test mode the
+// module's IsServerRunning() returns false and FFileHelper::LoadFileToString
+// will miss any port file, so this directly exercises the DeriveDefaultMcpPort
+// fallback without requiring any real infrastructure.
+uint32 Claireon_Test_ResolveLivePortFallback()
+{
+	return ClaireonLaunch::ResolveLivePort();
+}
+#endif // WITH_UNTESTED
 
 // ---------------------------------------------------------------------------
 // FClaireonBuiltinToolProvider -- private class that provides all built-in tools
@@ -2239,6 +2485,8 @@ void FClaireonModule::StartServer()
 		// DirectConnect mode -- we own the SHA port. The proxy (if any) is
 		// not in the path; .mcp.json still points Claude at this port.
 		CurrentMcpMode = EClaireonMcpMode::DirectConnect;
+		EffectivePublicPort = PreferredPort;
+		Server->WritePortFile(EffectivePublicPort, /*bProxyAttached=*/false);
 		UE_LOG(LogClaireon, Display,
 			TEXT("[MCP] Bound port %u for worktree %s (DirectConnect mode)"),
 			static_cast<uint32>(PreferredPort), *WorktreeRoot);
@@ -2311,6 +2559,10 @@ void FClaireonModule::StartServer()
 	}
 
 	CurrentMcpMode = EClaireonMcpMode::ProxyAttached;
+	// Capture effective public port before registration: in proxy-attached mode
+	// the proxy holds PreferredPort (the SHA port) and the editor's listener is
+	// ephemeral. .mcp.json (and the transient config) must target PreferredPort.
+	EffectivePublicPort = PreferredPort;
 
 	// Attempt a synchronous first registration so we detect failure
 	// immediately rather than silently landing in a proxy-attached mode
@@ -2336,6 +2588,8 @@ void FClaireonModule::StartServer()
 		if (Server->TryStart(PreferredPort))
 		{
 			CurrentMcpMode = EClaireonMcpMode::DirectConnect;
+			EffectivePublicPort = Server->GetPort();
+			Server->WritePortFile(EffectivePublicPort, /*bProxyAttached=*/false);
 			UE_LOG(LogClaireon, Display,
 				TEXT("[MCP] Fallback direct-connect bound on SHA port %u."),
 				static_cast<uint32>(PreferredPort));
@@ -2347,6 +2601,8 @@ void FClaireonModule::StartServer()
 			if (FallbackPort != 0)
 			{
 				CurrentMcpMode = EClaireonMcpMode::DirectConnect;
+				EffectivePublicPort = Server->GetPort();
+				Server->WritePortFile(EffectivePublicPort, /*bProxyAttached=*/false);
 				UE_LOG(LogClaireon, Display,
 					TEXT("[MCP] Fallback direct-connect bound on ephemeral port %u."),
 					static_cast<uint32>(FallbackPort));
@@ -2367,6 +2623,7 @@ void FClaireonModule::StartServer()
 	// heartbeats flowing.
 	ProxyClient->StartHeartbeatTickerOnly(
 		static_cast<int32>(Server->GetPort()), SessionToken, BuildId);
+	Server->WritePortFile(EffectivePublicPort, /*bProxyAttached=*/true);
 	UE_LOG(LogClaireon, Display,
 		TEXT("[MCP] Joined proxy session (bEnableProxy=%s, proxy pid=%u). "
 			 "Editor MCP listener bound on %u."),

@@ -68,6 +68,22 @@ public:
 	/** Current ingress mode for diagnostics-tab display. */
 	EClaireonMcpMode GetMcpMode() const { return CurrentMcpMode; }
 
+	/** SHA-derived public ingress port set at StartServer time. Zero until StartServer succeeds. */
+	uint16 GetEffectivePublicPort() const { return EffectivePublicPort; }
+
+	/**
+	 * Whether the launch button's async proxy health-check + recovery is in
+	 * flight. Game-thread only (see bProxyRecoveryInProgress).
+	 */
+	bool IsProxyRecoveryInProgress() const { return bProxyRecoveryInProgress; }
+
+	/**
+	 * Set the launch-button proxy-recovery in-flight flag. Game-thread only:
+	 * set true before dispatching the off-thread recovery, cleared in the
+	 * marshalled game-thread completion callback.
+	 */
+	void SetProxyRecoveryInProgress(bool bInProgress) { bProxyRecoveryInProgress = bInProgress; }
+
 	/** Get the module instance */
 	static FClaireonModule& Get();
 
@@ -128,6 +144,23 @@ private:
 
 	/** Which path StartServer settled on (DirectConnect / ProxyAttached). */
 	EClaireonMcpMode CurrentMcpMode = EClaireonMcpMode::Unstarted;
+
+	/**
+	 * True while the launch button's off-thread proxy health-check + recovery
+	 * is in flight. Read and written ONLY on the game thread (the button
+	 * callback and the marshalled game-thread completion callback), so no mutex
+	 * is needed. A second button click while this is true is a no-op (the
+	 * launch path shows an informational notification and returns).
+	 */
+	bool bProxyRecoveryInProgress = false;
+
+	/** SHA-derived public ingress port captured at StartServer time.
+	 *  Direct-connect: equals the bound port (the SHA port the editor owns).
+	 *  Proxy-attached: the SHA port the proxy holds for this worktree
+	 *  (derived via Claireon::DeriveDefaultMcpPort(WorktreeRoot)); the
+	 *  editor's local BoundPort is an ephemeral port the proxy forwards to.
+	 *  Zero until StartServer succeeds. */
+	uint16 EffectivePublicPort = 0;
 
 	/** Handle for IPythonScriptPlugin::OnPythonInitialized subscription.
 	 *  Bound in StartupModule when Python is not yet initialised; released in ShutdownModule. */

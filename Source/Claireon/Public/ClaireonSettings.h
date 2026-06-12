@@ -278,12 +278,18 @@ public:
 
     // --- Claude Code Launch ---
 
-    /** Initial prompt sent to Claude Code on launch (typically a slash command).
-     *  Empty = no initial prompt; engineer types their own.
-     *  Example: "/mcp-connect-claireon" to auto-fire the worktree-init skill. */
+    /** Initial prompt sent to Claude Code on launch.
+     *  Defaults to the plugin's shipped connect-and-configure instructions,
+     *  which verify the MCP connection and integrate a claireon entry into
+     *  the project's .mcp.json for future sessions. The default deliberately
+     *  references a file rather than a slash command: before Claireon is
+     *  connected, only the user's pre-existing .claude config exists, so a
+     *  slash command shipped with this plugin cannot be invoked yet.
+     *  Empty = no initial prompt; engineer types their own. */
     UPROPERTY(Config, EditAnywhere, Category="Claude Code Launch",
         meta=(DisplayName="Initial Prompt"))
-    FString LaunchInitialPrompt;
+    FString LaunchInitialPrompt = TEXT(
+        "Read Plugins/Claireon/Content/Instructions/ConnectClaireon.md and follow its instructions.");
 
     /** When true, the launch button passes --dangerously-skip-permissions to Claude Code,
      *  auto-approving every tool call for the entire session. Convenient for engineer

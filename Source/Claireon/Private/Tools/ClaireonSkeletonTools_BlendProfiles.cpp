@@ -635,9 +635,9 @@ FString ClaireonSkeletonTool_RemoveBlendMask::GetOperation() const { return TEXT
 
 FString ClaireonSkeletonTool_RemoveBlendMask::GetDescription() const
 {
-	return TEXT("DISABLED. Removing a blend mask corrupts ALL other blend masks on the skeleton due to an engine bug "
-				"in UE 5.5. This tool is registered only to document that and will always return an error. "
-				"If deletion is truly required, delete the mask manually in Persona while the team tracks the engine fix, "
+	return TEXT("DISABLED. Removing a blend mask corrupts ALL other blend masks on the skeleton due to a known engine "
+				"issue in UE 5.5. This tool is registered only to document that and will always return an error. "
+				"If deletion is truly required, delete the mask manually in Persona while the engine issue is resolved, "
 				"and verify every remaining mask is still intact before saving.");
 }
 
@@ -656,8 +656,8 @@ IClaireonTool::FToolResult ClaireonSkeletonTool_RemoveBlendMask::Execute(const T
 
 	return MakeErrorResult(FString::Printf(
 		TEXT("DISABLED: skeleton_remove_blend_mask is an intentional no-op. Removing a blend mask "
-			 "('%s' requested) corrupts all other blend masks on the skeleton due to an engine bug in UE 5.5. "
-			 "Asset is unchanged. If deletion is truly required, do it manually in Persona while the team tracks the "
-			 "engine fix, and verify all remaining masks survive before saving."),
+			 "('%s' requested) corrupts all other blend masks on the skeleton due to a known engine issue in UE 5.5. "
+			 "Asset is unchanged. If deletion is truly required, do it manually in Persona while the engine issue is "
+			 "resolved, and verify all remaining masks survive before saving."),
 		MaskNameStr.IsEmpty() ? TEXT("<none>") : *MaskNameStr));
 }

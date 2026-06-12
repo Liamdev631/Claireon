@@ -179,6 +179,16 @@ public:
 	 */
 	void PostSystemMessage(const FString& Text);
 
+	/** Write the port file to Saved/Claireon/MCPServer.json.
+	 *  @param EffectivePublicPort  SHA-derived public ingress port (equals BoundPort in
+	 *                              direct-connect; proxy's SHA port in proxy-attached).
+	 *  @param bProxyAttached       True when the proxy owns the SHA port and this server
+	 *                              is bound on an ephemeral port the proxy forwards to. */
+	void WritePortFile(uint16 EffectivePublicPort, bool bProxyAttached) const;
+
+	/** Delete the port file */
+	void DeletePortFile() const;
+
 private:
 	/** In-memory registry entry loaded from a JSON file in Content/MCP/Prompts/. */
 	struct FPromptTemplate
@@ -250,12 +260,6 @@ private:
 
 	/** Serialize a JSON object to a UTF-8 string */
 	static FString SerializeJson(const TSharedPtr<FJsonObject>& JsonObject);
-
-	/** Write the port file to Saved/Claireon/MCPServer.json */
-	void WritePortFile() const;
-
-	/** Delete the port file */
-	void DeletePortFile() const;
 
 	/** Get the path to the port file */
 	FString GetPortFilePath() const;
