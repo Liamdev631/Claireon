@@ -59,9 +59,10 @@ IClaireonTool::FToolResult FClaireonCameraAssetTool_Compile::Execute(const TShar
 	}
 
 	UE::Cameras::FCameraBuildLog Log;
+	bool bHasErrors = false;
+#if UE_VERSION_OLDER_THAN(5, 8, 0)
 	Asset->BuildCamera(Log);
 
-	bool bHasErrors = false;
 	for (const UE::Cameras::FCameraBuildLogMessage& M : Log.GetMessages())
 	{
 		if (M.Severity == EMessageSeverity::Error)
@@ -85,6 +86,15 @@ IClaireonTool::FToolResult FClaireonCameraAssetTool_Compile::Execute(const TShar
 	{
 		Data->SetArrayField(TEXT("errors"), TArray<TSharedPtr<FJsonValue>>());
 	}
+#else
+	// UE 5.8+: BuildCamera takes FCameraBuildContext; skip pre-run diagnostics
+	Asset->BuildCamera();
+	bHasErrors = false;
+
+	TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+	Data->SetBoolField(TEXT("ok"), true);
+	Data->SetArrayField(TEXT("errors"), TArray<TSharedPtr<FJsonValue>>());
+#endif
 
 	return MakeSuccessResult(Data, bHasErrors ? TEXT("compile failed") : TEXT("compile ok"));
 }

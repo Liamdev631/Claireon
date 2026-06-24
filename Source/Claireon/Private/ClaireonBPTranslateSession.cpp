@@ -45,11 +45,11 @@ bool FClaireonBPTranslateSession::SaveToFile(const FString& FilePath) const
 			NodeObj->SetStringField(TEXT("status"), NodePair.Value.Status);
 			NodeObj->SetStringField(TEXT("type"), NodePair.Value.Type);
 			NodeObj->SetStringField(TEXT("name"), NodePair.Value.Name);
-			NodesObj->SetObjectField(NodePair.Key, NodeObj);
+			NodesObj->SetObjectField(FString(*NodePair.Key), NodeObj);
 		}
 		BPObj->SetObjectField(TEXT("nodes"), NodesObj);
 
-		BPsObj->SetObjectField(BPPair.Key, BPObj);
+		BPsObj->SetObjectField(FString(*BPPair.Key), BPObj);
 	}
 	Root->SetObjectField(TEXT("blueprints"), BPsObj);
 
@@ -129,11 +129,12 @@ FClaireonBPTranslateSession FClaireonBPTranslateSession::LoadFromFile(const FStr
 					NodeStatus.Status = NodeObj->GetStringField(TEXT("status"));
 					NodeStatus.Type = NodeObj->GetStringField(TEXT("type"));
 					NodeStatus.Name = NodeObj->GetStringField(TEXT("name"));
-					BPState.Nodes.Add(NodePair.Key, NodeStatus);
+					BPState.Nodes.Add(FString(*NodePair.Key), NodeStatus);
 				}
 			}
 
-			Session.Blueprints.Add(BPPair.Key, BPState);
+			FString BpKey(*BPPair.Key);
+			Session.Blueprints.Add(BpKey, BPState);
 		}
 	}
 
@@ -241,7 +242,7 @@ TSharedPtr<FJsonObject> FClaireonBPTranslateSession::GetCompletionStats() const
 		}
 		BPObj->SetArrayField(TEXT("pending_nodes"), PendingNodes);
 
-		BPsObj->SetObjectField(BPPair.Key, BPObj);
+		BPsObj->SetObjectField(FString(*BPPair.Key), BPObj);
 
 		OverallTotal += BPState.TotalNodes;
 		OverallImplemented += BPState.ImplementedNodes;

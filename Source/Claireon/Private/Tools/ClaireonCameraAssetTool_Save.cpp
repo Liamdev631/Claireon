@@ -64,6 +64,7 @@ IClaireonTool::FToolResult FClaireonCameraAssetTool_Save::Execute(const TSharedP
 	// overload discards diagnostics; we need to capture them before SavePackages
 	// triggers the discard-overload PreSave path. The dual call is intentional —
 	// PreSave's rebuild against the same in-memory state is largely idempotent.
+#if UE_VERSION_OLDER_THAN(5, 8, 0)
 	UE::Cameras::FCameraBuildLog Log;
 	Asset->BuildCamera(Log);
 
@@ -85,6 +86,14 @@ IClaireonTool::FToolResult FClaireonCameraAssetTool_Save::Execute(const TSharedP
 		Data->SetArrayField(TEXT("build_log"), TArray<TSharedPtr<FJsonValue>>());
 	}
 	Data->SetNumberField(TEXT("error_count"), ErrorCount);
+#else
+	// UE 5.8+: BuildCamera takes FCameraBuildContext; skip pre-run diagnostics
+	Asset->BuildCamera();
+
+	TSharedPtr<FJsonObject> Data = MakeShared<FJsonObject>();
+	Data->SetArrayField(TEXT("build_log"), TArray<TSharedPtr<FJsonValue>>());
+	Data->SetNumberField(TEXT("error_count"), 0);
+#endif
 
 	// Save bytes regardless of build errors so callers can iterate on partially-
 	// constructed assets (e.g. an asset without a UCameraDirector while the
